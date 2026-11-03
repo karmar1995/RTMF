@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}{{ visualization_title or "Job Plot" }}{% endblock %}
+{% block content %}
+{% macro metric_value(metrics, field, kind) -%}
+  {%- set value = metrics|attr(field) if metrics is not none else none -%}
+  {%- if value is not none -%}
+    {%- if kind == "steps" -%}
+      {{ "%.0f"|format(value) }} steps
+    {%- elif kind == "percent" -%}
+      {{ "%.2f"|format(value) }}%
+    {%- else -%}
+      {{ "%.2f"|format(value) }}
+    {%- endif -%}
+  {%- else -%}
+    —
+  {%- endif -%}
+{%- endmacro %}
+<div class="container py-4">
+  {% set mcf_polling = visualization_mode == "mcf" %}
+  {% set plot_pending = result and (not result.plot_html or (result.scatter_plot_id is defined and result.scatter_plot_id and not result.scatter_plot_html and result.scatter_plot_status != 'error')) %}
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">{{ visualization_title or "Job Plot" }}</h1>
+      <p class="text-muted mb-0">Job {{ group_id }}</p>
+    </div>
+  </div>
+
+  {% set plotted_series = result.series if result and result.series is defined else [] %}
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h2 class="h5 mb-3">Plot Configuration</h2>
+          <dl class="row mb-4">
+            <dt class="col-sm-5">Plot type</dt>
+            <dd class="col-sm-7">{{ result.plot_type if result else "Not selected" }}</dd>
+          </dl>
+
+          <h3 class="h6 mb-3">Series</h3>
+          {% if plotted_series %}
+            <div class="vstack gap-3">
+              {% for series in plotted_series %}
+                <div class="border rounded p-3 bg-light-subtle">
+                  <div class="fw-semibold mb-2">Series {{ loop.index }}</div>
+                  <dl class="row mb-0 small">
+                    <dt class="col-sm-4">X</dt>
+                    <dd class="col-sm-8">{{ series.x or "Not selected" }}</dd>
+
+                    <dt class="col-sm-4">Y</dt>
+                    <dd class="col-sm-8">{{ series.y or "Not selected" }}</dd>
+
+                    <dt class="col-sm-4">Statistic</dt>
+                    <dd class="col-sm-8">{{ series.statistic or "Not selected" }}</dd>
+                  </dl>
+
+                  <hr class="my-3">
+
+                  <div class="small fw-semibold mb-2">Constant parameters</div>
+                  {% if series.constant_params %}
+                    <ul class="list-group list-group-flush">
+                      {% for key, value in series.constant_params.items() %}
+                        <li class="list-group-item px-0 py-2 d-flex justify-content-between bg-transparent">
+                          <span>{{ key[9:] if key.startswith("constant_") else key }}</span>
+                          <span class="text-muted">{{ value }}</span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="text-muted small mb-0">No constant parameters.</p>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No plotted series metadata available.</p>
+          {% endif %}
+
+          {% if visualization_mode == "mcf" and result and result.monte_carlo_statistics %}
+            <hr class="my-4">
+            <h3 class="h6 mb-3">Smirnov test results</h3>
+            <div class="table-responsive">
+              <table class="table table-sm small">
+                <thead class="table-light">
+                  <tr>
+                    <th>Statistic</th>
+                    {% for stat in result.monte_carlo_statistics %}
+                      <th>{{ stat.parameter }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">D-statistic</th>
+                    {% for stat in result.monte_carlo_statistics %}
+                      <td>{{ "%.4f"|format(stat.d_statistic) }}</td>
+                    {% endfor %}
+                  </tr>
+                  <tr>
+                    <th scope="row">p-value</th>
+                    {% for stat in result.monte_carlo_statistics %}
+                      <td>{{ stat.p_value }}</td>
+                    {% endfor %}
+                  </tr>
+                  <tr>
+                    <th scope="row">Reject H0</th>
+                    {% for stat in result.monte_carlo_statistics %}
+                      <td>
+                        {% if stat.reject_h0 %}
+                          <span class="badge bg-danger">Influential</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Not significant</span>
+                        {% endif %}
+                      </td>
+                    {% endfor %}
+                  </tr>
+                  <tr>
+                    <th scope="row">Behavioural samples</th>
+                    {% for stat in result.monte_carlo_statistics %}
+                      <td>{{ stat.behavioural_samples }}</td>
+                    {% endfor %}
+                  </tr>
+                  <tr>
+                    <th scope="row">Non-behavioural samples</th>
+                    {% for stat in result.monte_carlo_statistics %}
+                      <td>{{ stat.non_behavioural_samples }}</td>
+                    {% endfor %}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          {% if visualization_mode == "mcf" and result and result.behavioural_input_ranges %}
+            <hr class="my-3">
+            <a
+              class="btn btn-outline-primary btn-sm"
+              id="mcf-open-evaluation"
+              href="{{ url_for('onEvaluationRun', model=result.simulator_id, output=result.evaluation_output, aggregation=result.evaluation_aggregation or '', bounds=(result.behavioural_input_ranges | tojson)) }}"
+            >Open evaluation with behavioural ranges</a>
+          {% endif %}
+
+          {% if visualization_mode == "parser" %}
+            {% set metrics = result.disaster_stage_metrics if result and result.disaster_stage_metrics is defined else none %}
+            <hr class="my-4">
+            <h3 class="h6 mb-3">Disaster-stage metrics</h3>
+            <div class="list-group list-group-flush small">
+              <div class="list-group-item px-0 d-flex justify-content-between gap-3">
+                <span>Shock time</span>
+                <span class="text-muted text-end">{{ metric_value(metrics, "shock_time_in_steps", "steps") }}</span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between gap-3">
+                <span>Recovery time</span>
+                <span class="text-muted text-end">{{ metric_value(metrics, "recovery_time_in_steps", "steps") }}</span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between gap-3">
+                <span>Shock drop vs normal reference</span>
+                <span class="text-muted text-end">{{ metric_value(metrics, "shock_drop_pct_ref_normal", "percent") }}</span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between gap-3">
+                <span>Shock drop vs baseline reference</span>
+                <span class="text-muted text-end">{{ metric_value(metrics, "shock_drop_pct_ref_baseline", "percent") }}</span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between gap-3">
+                <span>Shock-stage average</span>
+                <span class="text-muted text-end">{{ metric_value(metrics, "shock_stage_avg", "number") }}</span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between gap-3">
+                <span>Shock-stage standard deviation</span>
+                <span class="text-muted text-end">{{ metric_value(metrics, "shock_stage_std", "number") }}</span>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-body" data-role="refresh-region">
+          <h2 class="h5 mb-3">Plot</h2>
+          {% if result and result.plot_html %}
+            <div class="border rounded p-3 bg-white">
+              {{ result.plot_html | safe }}
+            </div>
+          {% elif mcf_polling and result and result.plot_id %}
+            <div
+              class="mcf-plot-target"
+              id="mcf-ecdf-target"
+              data-plot-status="{{ result.plot_status or '' }}"
+              data-status-key="plot_status"
+              data-html-key="plot_html"
+              data-plot-state-url="{{ url_for('onSimulationGroupMonteCarloFilteringPlotState', job_id=group_id, plot_id=result.plot_id) }}"
+            >
+              <div class="alert alert-info mb-3" role="alert">
+                {{ result.waiting_message if result else "Plot is being generated." }}
+              </div>
+              <p class="text-muted mb-3">
+                <span data-role="poll-status">Still rendering, checking again in 5 s.</span>
+              </p>
+              <div class="border rounded p-4 bg-white d-none" data-role="plot-box"></div>
+            </div>
+          {% else %}
+            {% if result and result.plot_status == 'error' %}
+              <div class="alert alert-danger mb-3" role="alert">
+                {{ result.waiting_message if result else "Plot generation failed." }}
+              </div>
+              <div class="border rounded p-4 bg-white text-muted">
+                Plot output is not ready yet.
+              </div>
+            {% elif mcf_polling %}
+              <div class="alert alert-info mb-3" role="alert">
+                {{ result.waiting_message if result else "Plot is being generated." }}
+              </div>
+              <p class="text-muted mb-3">If the plot is still not available, use the button above to refresh.</p>
+              <div class="border rounded p-4 bg-white text-muted">
+                Plot output is not ready yet.
+              </div>
+            {% else %}
+              <div
+                data-poll-mode="page-content"
+                data-refresh-region-selector="[data-role='refresh-region']"
+              >
+                <div class="alert alert-info mb-3" role="alert">
+                  {{ result.waiting_message if result else "Plot is being generated." }}
+                </div>
+                <p class="text-muted mb-3">
+                  <span data-role="poll-status">Still rendering, checking again in 5 s.</span>
+                </p>
+              </div>
+              <div class="border rounded p-4 bg-white text-muted">
+                Plot output is not ready yet.
+              </div>
+              <script src="{{ url_for('static', filename='js/visualization_polling.js') }}"></script>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if visualization_mode == "mcf" and result and result.scatter_input_options %}
+    {% set scatter_ns = namespace(is_ts=false) %}
+    {% for name, typ in result.scatter_output_options or [] %}
+      {% if name == result.scatter_y and typ.lower().endswith("_ts") %}{% set scatter_ns.is_ts = true %}{% endif %}
+    {% endfor %}
+    {# Seed the Y aggregation from the form choice on first arrival. Key-presence, not
+       truthiness: an explicit empty scatter_aggregation means the user picked None.
+       A scalar Y has no time series to aggregate, so never seed it. #}
+    {% set scatter_agg_seed = request.args.get('scatter_aggregation', request.args.get('aggregation', '')) if scatter_ns.is_ts else '' %}
+    {# Lock the controls while the visualization service is rendering. Keyed on status, not on
+       missing HTML: a failed plot also has no HTML, and reusing that would leave the form
+       permanently dead after any error. Mirrors isFinalStatus() in the polling script, and
+       ORs both plots so a running ECDF alone locks too. #}
+    {% set run_ns = namespace(running=false) %}
+    {% if result.plot_id and result.plot_status and result.plot_status not in ('done', 'error') %}
+      {% set run_ns.running = true %}
+    {% endif %}
+    {% if result.scatter_plot_id and result.scatter_plot_status and result.scatter_plot_status not in ('done', 'error') %}
+      {% set run_ns.running = true %}
+    {% endif %}
+    {% set lock = ' disabled' if run_ns.running else '' %}
+    <div class="card shadow-sm border-0 mt-4">
+      <div class="card-body p-4">
+        <div class="mb-3">
+          <h2 class="h5 mb-1">Runs — behavioural vs non-behavioural</h2>
+          <p class="text-muted mb-0">Each point is one run. The class is fixed by the Monte Carlo Filtering configuration above; changing the axes only re-plots the same runs.</p>
+        </div>
+
+        <form method="get" action="{{ url_for('onSimulationJobPlot', job_id=group_id) }}#mcf-scatter-plot-area" id="mcf-scatter-form">
+          <input type="hidden" name="plot" value="1">
+          <input type="hidden" name="mode" value="mcf">
+          <input type="hidden" name="y" value="{{ request.args.get('y', result.scatter_y or '') }}">
+          <input type="hidden" name="threshold" value="{{ request.args.get('threshold', '') }}">
+          <input type="hidden" name="direction" value="{{ request.args.get('direction', 'greater') }}">
+          <input type="hidden" name="aggregation" value="{{ request.args.get('aggregation', '') }}">
+
+          {# Top-aligned so the extra form-text under the aggregation box cannot push the
+             X and Y selects out of line with it. #}
+          <div class="row g-3 align-items-start">
+            <div class="col-lg-4">
+              <label for="scatter_x" class="form-label">X axis (input)</label>
+              <select id="scatter_x" name="scatter_x" class="form-select"{{ lock }}>
+                {% for name, typ in result.scatter_input_options %}
+                  <option value="{{ name }}" {% if name == result.scatter_x %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-lg-4">
+              <label for="scatter_y" class="form-label">Y axis (output)</label>
+              <select id="scatter_y" name="scatter_y" class="form-select" data-role="scatter-y-select"{{ lock }}>
+                {% for name, typ in result.scatter_output_options or [] %}
+                  <option value="{{ name }}" data-param-type="{{ typ }}" {% if name == result.scatter_y %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-lg-4 {% if not scatter_ns.is_ts %}d-none{% endif %}" id="scatter-aggregation-row">
+              <label for="scatter_aggregation" class="form-label">Y time-series aggregation</label>
+              <select id="scatter_aggregation" name="scatter_aggregation" class="form-select"{{ lock }}>
+                <option value="" {% if scatter_agg_seed == "" %}selected{% endif %}>None</option>
+                {% for stat in ["mean", "min", "max", "median", "p95"] %}
+                  <option value="{{ stat }}" {% if scatter_agg_seed == stat %}selected{% endif %}>{{ stat }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Applied only to the scatter Y; the filtering classification is unchanged.</div>
+            </div>
+          </div>
+
+          <div class="mt-3 d-flex justify-content-between align-items-center gap-2">
+            <span class="text-muted small">Behavioural: {{ result.behavioural_count if result.behavioural_count is not none else "—" }}, non-behavioural: {{ result.non_behavioural_count if result.non_behavioural_count is not none else "—" }}.</span>
+            <button type="submit" class="btn btn-outline-primary" id="mcf-scatter-submit"{{ lock }}>Update scatter</button>
+          </div>
+        </form>
+
+        <div class="mt-3" id="mcf-scatter-plot-area">
+          {% if result.scatter_plot_html %}
+            <div class="border rounded p-3 bg-white">
+              {{ result.scatter_plot_html | safe }}
+            </div>
+          {% elif result.scatter_plot_status == "error" %}
+            <div class="alert alert-danger mb-0" role="alert">Scatter plot generation failed.</div>
+          {% elif result.scatter_plot_id %}
+            <div
+              class="mcf-plot-target"
+              id="mcf-scatter-target"
+              data-plot-status="{{ result.scatter_plot_status or '' }}"
+              data-status-key="scatter_plot_status"
+              data-html-key="scatter_plot_html"
+              data-plot-state-url="{{ url_for('onSimulationGroupMonteCarloFilteringPlotState', job_id=group_id, plot_id=result.plot_id, scatter_plot_id=result.scatter_plot_id) }}"
+            >
+              <div class="alert alert-info mb-0" role="alert">Scatter plot is being generated…</div>
+              <p class="text-muted mb-0 mt-2"><span data-role="poll-status">Still rendering, checking again in 5 s.</span></p>
+              <div class="border rounded p-3 bg-white d-none mt-2" data-role="plot-box"></div>
+            </div>
+          {% else %}
+            <div class="alert alert-info mb-0" role="alert">Scatter plot is being generated…</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const ySelect = document.querySelector("[data-role='scatter-y-select']");
+        const aggregationRow = document.getElementById("scatter-aggregation-row");
+        const aggregationSelect = document.getElementById("scatter_aggregation");
+        if (!ySelect || !aggregationRow || !aggregationSelect) {
+          return;
+        }
+        function syncAggregation() {
+          const option = ySelect.options[ySelect.selectedIndex];
+          const paramType = option ? (option.dataset.paramType || "") : "";
+          const isTimeSeries = paramType.toLowerCase().endsWith("_ts");
+          aggregationRow.classList.toggle("d-none", !isTimeSeries);
+          if (!isTimeSeries) {
+            aggregationSelect.value = "";
+          }
+        }
+        ySelect.addEventListener("change", syncAggregation);
+        syncAggregation();
+      });
+    </script>
+    <script>
+      // Separate block on purpose: the block above returns early when the aggregation
+      // controls are absent, but the submit guard must not depend on them. The button
+      // carries no value, so disabling it cannot lose the selected axes from the GET.
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("mcf-scatter-form");
+        const submitButton = document.getElementById("mcf-scatter-submit");
+        if (!form || !submitButton) {
+          return;
+        }
+        form.addEventListener("submit", function () {
+          submitButton.disabled = true;
+        });
+        // Back-navigation restores the DOM as it was, disabled button included.
+        window.addEventListener("pageshow", function (event) {
+          if (event.persisted) {
+            submitButton.disabled = false;
+          }
+        });
+      });
+    </script>
+  {% endif %}
+
+  {% if mcf_polling %}
+    <script src="{{ url_for('static', filename='js/visualization_polling.js') }}"></script>
+  {% endif %}
+</div>
+{% endblock %}

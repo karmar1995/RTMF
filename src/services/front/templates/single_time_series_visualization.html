@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}{{ visualization_title }}{% endblock %}
+{% block content %}
+<div class="container py-4" data-role="refresh-region">
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">{{ visualization_heading }}</h1>
+      <p class="text-muted mb-0">Job {{ group_id }}</p>
+    </div>
+    <a href="{{ url_for('onSimulationGroupVisualize', job_id=group_id) }}" class="btn btn-outline-secondary">Back to Visualization Modes</a>
+  </div>
+
+  {% if error_message %}
+    <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+  {% endif %}
+
+  {% include "_visualization_results_error.html" %}
+
+  {% if result and result.warning %}
+    <div class="alert alert-warning" role="alert">{{ result.warning }}</div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+    {% set constant_descriptors = result.constants.constants if result.constants else none %}
+    {% set output_namespace = namespace(has_time_series_output=false, has_time_input=false) %}
+    {% for name, typ in result.output_params %}
+      {% if typ.endswith("_ts") %}
+        {% set output_namespace.has_time_series_output = true %}
+      {% endif %}
+    {% endfor %}
+    {% for name, typ in result.input_params %}
+      {% if name == "time" %}
+        {% set output_namespace.has_time_input = true %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <div class="mb-4">
+          <h2 class="h5 mb-1">Select Parameters</h2>
+          <p class="text-muted mb-0">Choose the axes, statistic, repetition, and any fixed input values before continuing.</p>
+        </div>
+
+        <form method="get" action="{{ url_for('onSimulationJobPlot', job_id=group_id) }}">
+          <input type="hidden" name="plot" value="1">
+          <input type="hidden" name="mode" value="{{ visualization_mode }}">
+
+          <div class="card border rounded-3">
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-lg-4">
+                  <label for="x_display" class="form-label">X parameter</label>
+                  <input type="hidden" name="x" value="time">
+                  <input type="hidden" name="stat" value="none">
+                  <select id="x_display" class="form-select" data-role="x-select" disabled>
+                    <option value="time" selected>time</option>
+                  </select>
+                </div>
+
+                <div class="col-lg-4">
+                  <label for="y" class="form-label">Y parameter</label>
+                  <select id="y" name="y" class="form-select" data-role="y-select">
+                    {% for name, typ in result.output_params %}
+                      <option
+                        value="{{ name }}"
+                        data-param-type="{{ typ }}"
+                        {% if request.args.get("y") == name %}selected{% endif %}
+                      >{{ name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <hr class="my-4">
+
+              <div>
+                <h4 class="h6 mb-3">Parameters</h4>
+
+                {% if result.constants is none %}
+                  <div class="row g-3">
+                    <div class="col-md-6 col-xl-4">
+                      <label for="repetition" class="form-label">Repetition</label>
+                      <select id="repetition" name="repetition" class="form-select" data-selected-value="{{ request.args.get('repetition', '') }}">
+                        <option value="">Loading repetitions...</option>
+                      </select>
+                      <div class="form-text" id="repetition-help">Available repetitions are loaded from the backend.</div>
+                    </div>
+                    <div class="col-12">
+                      <div
+                        class="alert alert-info mb-0"
+                        role="alert"
+                        data-poll-mode="page-content"
+                        data-state-url="{{ url_for('visualization_status', job_id=group_id) }}"
+                        data-state-status-key="results_status"
+                        data-terminal-statuses="ok,error"
+                        data-refresh-region-selector="[data-role='refresh-region']"
+                      >
+                        Constant parameters are not available yet because analytics or job initialization is still in progress.
+                        <div class="text-muted small mt-2">
+                          <span data-role="poll-status">Still loading, checking again in 5 s.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% elif constant_descriptors %}
+                  {% set selected_x = "time" %}
+                  <div class="row g-3" data-role="constant-grid">
+                    <div class="col-md-6 col-xl-4">
+                      <label for="repetition" class="form-label">Repetition</label>
+                      <select id="repetition" name="repetition" class="form-select" data-selected-value="{{ request.args.get('repetition', '') }}">
+                        <option value="">Loading repetitions...</option>
+                      </select>
+                      <div class="form-text" id="repetition-help">Available repetitions are loaded from the backend.</div>
+                    </div>
+                    {% for param in constant_descriptors %}
+                      {% set param_name = param.name %}
+                      {% set selected_value = request.args.get("constant_" ~ param_name) %}
+                      <div
+                        class="col-md-6 col-xl-4{% if param_name == selected_x %} d-none{% endif %}"
+                        data-constant-row
+                        data-constant-name="{{ param_name }}"
+                      >
+                        <label for="constant_{{ loop.index0 }}" class="form-label">{{ param_name }}</label>
+                        <select
+                          id="constant_{{ loop.index0 }}"
+                          name="constant_{{ param_name }}"
+                          class="form-select"
+                          data-role="constant-select"
+                          data-constant-param="{{ param_name }}"
+                          {% if param_name == selected_x %}disabled{% endif %}
+                        >
+                          {% for value in param.value or [] %}
+                            {% set option_value = value|string %}
+                            <option value="{{ option_value }}" {% if selected_value == option_value %}selected{% endif %}>
+                              {{ option_value }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    {% endfor %}
+                  </div>
+                  <p
+                    class="text-muted mb-0 mt-3{% if constant_descriptors|length > 1 or (constant_descriptors|length == 1 and constant_descriptors[0].name != selected_x) %} d-none{% endif %}"
+                    data-role="constant-empty-message"
+                  >
+                    No constant parameters available for the selected X parameter.
+                  </p>
+                {% else %}
+                  <div class="row g-3">
+                    <div class="col-md-6 col-xl-4">
+                      <label for="repetition" class="form-label">Repetition</label>
+                      <select id="repetition" name="repetition" class="form-select" data-selected-value="{{ request.args.get('repetition', '') }}">
+                        <option value="">Loading repetitions...</option>
+                      </select>
+                      <div class="form-text" id="repetition-help">Available repetitions are loaded from the backend.</div>
+                    </div>
+                    <div class="col-12">
+                      <p class="text-muted mb-0">No constant parameters available.</p>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card border rounded-3 mt-4">
+            <div class="card-body p-4">
+              <div class="row g-3 align-items-end">
+                <div class="col-lg-6">
+                  <label for="plot_type" class="form-label">Plot type</label>
+                  <select
+                    id="plot_type"
+                    name="plot_type"
+                    class="form-select"
+                    {% if not plot_types %}disabled{% endif %}
+                  >
+                    {% if plot_types %}
+                      {% set selected_plot_type = request.args.get("plot_type", "") %}
+                      {% for plot_type in plot_types %}
+                        <option
+                          value="{{ plot_type }}"
+                          {% if selected_plot_type == plot_type or (not selected_plot_type and loop.first) %}selected{% endif %}
+                        >
+                          {{ plot_type }}
+                        </option>
+                      {% endfor %}
+                    {% else %}
+                      <option value="" selected>Plot types are not available yet.</option>
+                    {% endif %}
+                  </select>
+                  {% if not plot_types %}
+                    <div class="form-text">Plot types are not available yet.</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-end">
+            <div class="d-flex flex-column align-items-end">
+              <button type="submit" class="btn btn-primary" {% if result.constants is none %}disabled{% endif %}>{{ visualization_submit_label }}</button>
+              {% if result.constants is none %}
+                <div class="form-text text-end">Continue is unavailable until constant parameters are loaded.</div>
+              {% endif %}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <p class="text-muted mb-0">Visualization options are still loading or currently unavailable.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const xSelect = document.querySelector("[data-role='x-select']");
+      const ySelect = document.querySelector("[data-role='y-select']");
+      const repetitionSelect = document.getElementById("repetition");
+      const repetitionHelp = document.getElementById("repetition-help");
+      const constantRows = Array.from(document.querySelectorAll("[data-constant-row]"));
+      const constantEmptyMessage = document.querySelector("[data-role='constant-empty-message']");
+
+      const allYOptions = [
+        {% for name, typ in result.output_params %}
+          {
+            value: {{ name|tojson }},
+            label: {{ name|tojson }},
+            paramType: {{ typ|tojson }}
+          }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ];
+
+      function updateConstantVisibility() {
+        if (!xSelect || !constantRows.length) {
+          return;
+        }
+
+        const selectedX = xSelect.value;
+        let visibleRows = 0;
+
+        constantRows.forEach(function (row) {
+          const select = row.querySelector("select");
+          const isSelectedX = row.dataset.constantName === selectedX;
+
+          row.classList.toggle("d-none", isSelectedX);
+          if (select) {
+            select.disabled = isSelectedX;
+          }
+
+          if (!isSelectedX) {
+            visibleRows += 1;
+          }
+        });
+
+        if (constantEmptyMessage) {
+          constantEmptyMessage.classList.toggle("d-none", visibleRows !== 0);
+        }
+      }
+
+      function updateYOptions() {
+        if (!xSelect || !ySelect) {
+          return;
+        }
+
+        const selectedX = xSelect.value;
+        const requestedValue = ySelect.value || ySelect.dataset.selectedValue || "";
+        const availableYOptions = allYOptions.filter(function (option) {
+          return selectedX !== "time" || option.paramType.endsWith("_ts");
+        });
+
+        ySelect.innerHTML = "";
+
+        availableYOptions.forEach(function (optionData, index) {
+          const option = document.createElement("option");
+          option.value = optionData.value;
+          option.textContent = optionData.label;
+          option.dataset.paramType = optionData.paramType;
+          if (optionData.value === requestedValue || (!requestedValue && index === 0)) {
+            option.selected = true;
+          }
+          ySelect.appendChild(option);
+        });
+
+        if (!availableYOptions.some(function (option) { return option.value === requestedValue; }) && ySelect.options.length > 0) {
+          ySelect.selectedIndex = 0;
+        }
+
+        ySelect.dataset.selectedValue = ySelect.value || "";
+      }
+
+      function loadRepetitions() {
+        if (!repetitionSelect) {
+          return;
+        }
+
+        fetch({{ url_for('visualization_repetitions', job_id=group_id)|tojson }})
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("Failed to load repetitions.");
+            }
+            return response.json();
+          })
+          .then(function (payload) {
+            const repetitions = Array.isArray(payload.repetitions) ? payload.repetitions : [];
+            const requestedValue = repetitionSelect.dataset.selectedValue || "";
+
+            repetitionSelect.innerHTML = "";
+
+            repetitions.forEach(function (repetition, index) {
+              const option = document.createElement("option");
+              const optionValue = String(repetition);
+              option.value = optionValue;
+              option.textContent = optionValue;
+              if (optionValue === requestedValue || (!requestedValue && index === 0)) {
+                option.selected = true;
+              }
+              repetitionSelect.appendChild(option);
+            });
+
+            if (!repetitions.length) {
+              const option = document.createElement("option");
+              option.value = "";
+              option.textContent = "No repetitions available";
+              repetitionSelect.appendChild(option);
+              repetitionSelect.disabled = true;
+            }
+
+            if (repetitionHelp) {
+              repetitionHelp.textContent = repetitions.length
+                ? "Available repetitions are loaded from the backend."
+                : "No repetitions are currently available.";
+            }
+          })
+          .catch(function () {
+            repetitionSelect.innerHTML = "";
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "Unable to load repetitions";
+            repetitionSelect.appendChild(option);
+            repetitionSelect.disabled = true;
+            if (repetitionHelp) {
+              repetitionHelp.textContent = "Unable to load repetition values from the backend.";
+            }
+          });
+      }
+
+      if (xSelect) {
+        xSelect.addEventListener("change", function () {
+          updateConstantVisibility();
+          updateYOptions();
+        });
+      }
+
+      if (ySelect) {
+        ySelect.addEventListener("change", function () {
+          ySelect.dataset.selectedValue = ySelect.value;
+        });
+      }
+
+      updateConstantVisibility();
+      updateYOptions();
+      loadRepetitions();
+    });
+  </script>
+{% endif %}
+
+  <script src="{{ url_for('static', filename='js/visualization_polling.js') }}"></script>
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}System Discovery Simulations{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<h1>System Discovery Simulations</h1>
+
+{% if simulation %}
+  {% if simulation.badge_class in ['secondary', 'warning'] or (visualization and visualization.state.value in ['pending', 'not_ready']) %}
+    <meta http-equiv="refresh" content="5">
+  {% endif %}
+
+  <div class="card my-4">
+    <div class="card-header">Simulation details</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">Simulation ID</dt>
+        <dd class="col-sm-9"><code>{{ simulation.simulation_id }}</code></dd>
+        <dt class="col-sm-3">Source saved model</dt>
+        <dd class="col-sm-9">{{ simulation.source_model_name }}</dd>
+        <dt class="col-sm-3">Created</dt>
+        <dd class="col-sm-9"><span data-utc-datetime="{{ simulation.created_at }}">{{ simulation.created_at }}</span></dd>
+        <dt class="col-sm-3">Updated</dt>
+        <dd class="col-sm-9"><span data-utc-datetime="{{ simulation.updated_at }}">{{ simulation.updated_at }}</span></dd>
+        <dt class="col-sm-3">State</dt>
+        <dd class="col-sm-9"><span class="badge text-bg-{{ simulation.badge_class }}">{{ simulation.state_label }}</span></dd>
+        <dt class="col-sm-3">Horizon</dt>
+        <dd class="col-sm-9">{{ simulation.horizon }}</dd>
+        <dt class="col-sm-3">Initial conditions</dt>
+        <dd class="col-sm-9">{{ simulation.initial_conditions }}</dd>
+        <dt class="col-sm-3">External control signals</dt>
+        <dd class="col-sm-9">{{ simulation.external_control_signals }}</dd>
+        {% if simulation.error %}
+          <dt class="col-sm-3">Error</dt>
+          <dd class="col-sm-9">{{ simulation.error }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <section class="mt-4">
+    <h2 class="h4">Results visualization</h2>
+    <div class="border rounded bg-light">
+      {% set plot = visualization %}
+      {% include "_system_discovery_plot.html" %}
+    </div>
+  </section>
+
+  {% if simulation.badge_class in ['secondary', 'warning'] %}
+    <div class="alert alert-info" role="alert">Simulation is still running. This page will refresh automatically.</div>
+  {% elif visualization and visualization.state.value in ['pending', 'not_ready'] %}
+    <div class="alert alert-info" role="alert">Visualization is being generated. This page will refresh automatically.</div>
+  {% endif %}
+{% endif %}
+{% endblock %}

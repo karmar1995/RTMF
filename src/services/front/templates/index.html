@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Simulation Menu{% endblock %}
+
+{% block content %}
+<h1 class="mb-2">Welcome</h1>
+<p class="text-muted">
+  This app lets you <strong>register models</strong>, <strong>configure parameter sweeps</strong>, and <strong>run & monitor simulations</strong>.
+</p>
+
+<!-- Feature cards -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-2">Register Model</h5>
+        <p class="card-text small">
+          Upload a <code>.zip</code>, name your model, and define its I/O parameters using plain Python types.
+        </p>
+        <ul class="small mb-3">
+          <li>Allowed types: <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code></li>
+          <li>Inputs saved to <code>input_parameters.json</code></li>
+          <li>Outputs saved to <code>output_parameters.json</code></li>
+        </ul>
+        <a href="{{ url_for('onRegisterModel') }}" class="btn btn-outline-primary w-100">Go to Register</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-2">Run Simulation</h5>
+        <p class="card-text small">
+          Pick a model from the dropdown (loaded from your models directory). The page reads
+          <code>input_parameters.json</code> and builds an editable grid:
+        </p>
+        <ul class="small mb-3">
+          <li><strong>int/float:</strong> name, <em>min</em>, <em>max</em>, <em>step</em></li>
+          <li><strong>str/bool:</strong> name, <em>list of values</em> (comma-separated)</li>
+        </ul>
+        <a href="{{ url_for('onRunSimulation') }}" class="btn btn-outline-primary w-100">Go to Run</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-2">Monitor</h5>
+        <p class="card-text small">
+          Track job status, logs, and results after starting a simulation.
+        </p>
+        <a href="{{ url_for('onSimulationMonitor') }}" class="btn btn-outline-primary w-100">Go to Monitor</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick start -->
+<div class="card mb-4">
+  <div class="card-header">Quick Start</div>
+  <div class="card-body">
+    <ol class="mb-0">
+      <li><strong>Register</strong> a model: upload the <code>.zip</code>, define input/output parameters.</li>
+      <li><strong>Run</strong> a simulation: choose the model, fill the parameter grid, and submit.</li>
+      <li><strong>Monitor</strong> progress and retrieve results.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- Conventions & file layout -->
+<div class="row g-3">
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header">Parameter Conventions</div>
+      <div class="card-body">
+        <ul class="small mb-3">
+          <li>Types: <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> (no tuples/custom types).</li>
+          <li><strong>Numeric (int/float):</strong> provide <em>min</em>, <em>max</em>, <em>step</em>.</li>
+          <li><strong>Discrete (str/bool):</strong> provide a comma-separated <em>list of values</em>.
+            For booleans, use <code>true,false</code> or <code>True,False</code>.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header">Model Files</div>
+      <div class="card-body">
+        <p class="small mb-2">Each model folder typically contains:</p>
+        <pre class="mb-3 small"><code>&lt;MODELS_DIR&gt;/
+  &lt;model_name&gt;/
+    model.zip
+    input_parameters.json
+    output_parameters.json
+</code></pre>
+        <p class="small mb-0 text-muted">
+          The Run page scans <code>&lt;MODELS_DIR&gt;</code> to build the model list. Flash messages appear as Bootstrap alerts after actions.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

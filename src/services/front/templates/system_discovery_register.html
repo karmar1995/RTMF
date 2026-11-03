@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Register System Discovery{% endblock %}
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <h1>Register System Discovery</h1>
+  <p>Review the legacy System Discovery engine registration shape. Engine registration execution will be connected through the application workflow later if it remains needed.</p>
+
+  <div class="alert alert-info mt-4" role="alert">
+    System Discovery engine registration is currently presentation-only in the front service.
+  </div>
+
+  <form class="mt-4" enctype="multipart/form-data">
+    <!-- Model Name -->
+    <div class="mb-3">
+      <label for="discoveryEngineName" class="form-label">System Discovery Engine Name</label>
+      <input type="text" class="form-control" id="discoveryEngineName" name="discoveryEngineName"
+             placeholder="Enter system discovery engine name" required>
+    </div>
+
+    <!-- File Upload -->
+    <div class="mb-3">
+      <label for="discoveryModelFile" class="form-label">Model File (.zip)</label>
+      <input type="file" class="form-control" id="discoveryModelFile" name="discoveryModelFile"
+             accept=".zip" required>
+      <div class="form-text">Upload your system discovery model packaged as a .zip file.</div>
+    </div>
+
+    <!-- Main Script Name -->
+    <div class="mb-4">
+      <label for="mainScriptName" class="form-label">Main Script Name</label>
+      <input type="text" class="form-control" id="mainScriptName" name="mainScriptName"
+             placeholder="e.g. run_discovery.py" required>
+      <div class="form-text">Specify the entry-point script inside the uploaded ZIP that launches the system discovery process.</div>
+    </div>
+
+    <!-- ===================== MODEL CREATION SECTION ===================== -->
+    <hr class="my-5">
+    <h3 class="mb-4 text-primary border-bottom pb-2">Model Creation</h3>
+
+    <!-- User Parameters -->
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>User Parameters</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="addDiscoveryParamBtn" disabled>Add Parameter</button>
+      </div>
+      <div class="card-body">
+        <div id="discoveryParamsList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Parameter editing is disabled while registration is presentation-only.
+        </div>
+      </div>
+    </div>
+
+    <!-- Non-user Parameters (optional) -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Non-user Parameters (Optional)</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="addNonUserParamBtn" disabled>Add Non-user Parameter</button>
+      </div>
+      <div class="card-body">
+        <div id="nonUserParamsList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Parameter editing is disabled while registration is presentation-only.
+        </div>
+      </div>
+    </div>
+
+    <!-- Switches (optional) -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Switches (Optional)</span>
+        <button type="button" class="btn btn-sm btn-outline-success" id="addSwitchBtn" disabled>Add Switch</button>
+      </div>
+      <div class="card-body">
+        <div id="switchesList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Switch editing is disabled while registration is presentation-only.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== RUNNING SYSTEM DISCOVERY SECTION ===================== -->
+    <hr class="my-5">
+    <h3 class="mb-4 text-primary border-bottom pb-2">Running System Discovery</h3>
+
+    <!-- Run User Parameters -->
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>User Parameters</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="addRunParamBtn" disabled>Add Parameter</button>
+      </div>
+      <div class="card-body">
+        <div id="runParamsList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Parameter editing is disabled while registration is presentation-only.
+        </div>
+      </div>
+    </div>
+
+    <!-- Run Non-user Parameters (optional) -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Non-user Parameters (Optional)</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="addRunNonUserBtn" disabled>Add Non-user Parameter</button>
+      </div>
+      <div class="card-body">
+        <div id="runNonUserList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Parameter editing is disabled while registration is presentation-only.
+        </div>
+      </div>
+    </div>
+
+    <!-- Run Switches (optional) -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Switches (Optional)</span>
+        <button type="button" class="btn btn-sm btn-outline-success" id="addRunSwitchBtn" disabled>Add Switch</button>
+      </div>
+      <div class="card-body">
+        <div id="runSwitchesList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Switch editing is disabled while registration is presentation-only.
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="mt-5">
+      <button type="button" class="btn btn-primary" disabled>Register System Discovery</button>
+      <div class="form-text">Registration submission is not enabled in the front service yet.</div>
+    </div>
+  </form>
+
+{% endblock %}

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Visualization Service REST API Tester</title>
+    <script src="/files/plotly.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+        background: #f7f7f7;
+      }
+      form,
+      .download {
+        background: #fff;
+        padding: 20px;
+        margin-bottom: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      h2 {
+        margin-top: 0;
+      }
+
+      label {
+        display: block;
+        margin-top: 10px;
+      }
+
+      button {
+        margin-top: 15px;
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+
+      .download-btn {
+        padding: 10px 20px;
+        margin: 0px 20px;
+        text-decoration: none;
+        color: black;
+        border-radius: 10px;
+        border-style: groove;
+      }
+
+      .download-btn:hover {
+        text-decoration: underline;
+      }
+
+      input {
+        width: 75%;
+      }
+
+      img {
+        width: 100%;
+      }
+
+      h1 {
+        border-left-style: solid;
+        border-color: purple;
+        padding: 1%;
+      }
+
+      .result {
+        margin-top: 15px;
+        padding: 10px;
+        background: #eee;
+        white-space: pre-wrap;
+      }
+
+      #plotContainer {
+        border-style: dotted;
+        text-align: center;
+        padding: 1%;
+        background-color: white;
+        overflow-y: scroll;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Visualization Service REST API Tester</h1>
+    <section class="download">
+      <h2>Data for tests</h2>
+      <a href="/files/boxplot.zip" download class="download-btn">Boxplot</a>
+      <a href="/files/line.zip" download class="download-btn">Line</a>
+      <a href="/files/miso.zip" download class="download-btn">MISO</a>
+      <a href="/files/uof.zip" download class="download-btn"
+        >University of Florida</a
+      >
+    </section>
+
+    <form id="uploadForm">
+      <h2>Generate 2D Plot</h2>
+
+      <label>
+        Traits:
+        <input type="text" name="traits" />
+      </label>
+
+      <label>
+        Results in a zip archive:
+        <input type="file" name="data" accept=".zip" required />
+      </label>
+
+      <label>
+        Plot 2D Type (loaded from API):
+        <select name="type" id="selectFromApi" required>
+          <option value="">Loading...</option>
+        </select>
+      </label>
+
+      <button type="submit">Send</button>
+      <div class="result" id="uploadResult"></div>
+    </form>
+
+    <form id="statusForm">
+      <h2>Plot Status</h2>
+
+      <label>
+        ID:
+        <input type="text" name="id" required />
+      </label>
+
+      <button type="submit">Check status</button>
+      <div class="result" id="statusResult"></div>
+    </form>
+
+    <form id="plotForm">
+      <h2>Get Plot</h2>
+
+      <label>
+        ID:
+        <input type="text" name="id" required />
+      </label>
+
+      <button type="submit">Load plot</button>
+    </form>
+
+    <div id="plotContainer">Plot will be printed here</div>
+
+    <script>
+      const API = {
+        selectData: "/api/v1/get-plots-info",
+        upload: "/api/v1/generate-plot2D",
+        status: "/api/v1/get-plot-status",
+        plot: "/api/v1/get-plot-html",
+      };
+
+      // ---------- LOAD SELECT OPTIONS ----------
+      fetch(API.selectData)
+        .then((res) => res.json())
+        .then((data) => {
+          const select = document.getElementById("selectFromApi");
+          select.innerHTML = "";
+          data.forEach((item) => {
+            const option = document.createElement("option");
+            option.value = item.name;
+            option.textContent = item.name;
+            select.appendChild(option);
+          });
+        })
+        .catch(() => {
+          document.getElementById("selectFromApi").innerHTML =
+            '<option value="">Failed to load options</option>';
+        });
+
+      // ---------- FORM 1: UPLOAD ----------
+      document.getElementById("uploadForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+
+        fetch(API.upload, {
+          method: "POST",
+          body: formData,
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            document.getElementById("uploadResult").textContent =
+              JSON.stringify(data, null, 2);
+            document.getElementById("statusForm").id.value = data.id;
+            document.getElementById("statusResult").innerHTML = "";
+            document.getElementById("plotForm").id.value = data.id;
+            document.getElementById("plotContainer").innerHTML =
+              "Plot will be printed here";
+          })
+          .catch((err) => {
+            document.getElementById("uploadResult").textContent =
+              err.toString();
+          });
+      });
+
+      // ---------- FORM 2: STATUS ----------
+      document.getElementById("statusForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const value = e.target.id.value;
+
+        fetch(`${API.status}/${value}`, {
+          method: "GET",
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            document.getElementById("statusResult").textContent =
+              JSON.stringify(data, null, 2);
+          })
+          .catch((err) => {
+            document.getElementById("statusResult").textContent =
+              err.toString();
+          });
+      });
+
+      // ---------- FORM 3: plot (HTML + JS RESPONSE) ----------
+      document.getElementById("plotForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const value = e.target.id.value;
+
+        fetch(`${API.plot}/${value}`, {
+          method: "GET",
+        })
+          .then((res) => res.text())
+          .then((html) => {
+            const container = document.getElementById("plotContainer");
+            container.innerHTML = html;
+
+            container.querySelectorAll("script").forEach((oldScript) => {
+              const newScript = document.createElement("script");
+              newScript.text = oldScript.text;
+              document.body.appendChild(newScript);
+            });
+          })
+          .catch((err) => {
+            document.getElementById("plotContainer").textContent =
+              err.toString();
+          });
+      });
+    </script>
+  </body>
+</html>

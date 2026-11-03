@@ -1,0 +1,541 @@
+{
+  "version": 1,
+  "defaults": {
+    "rest": {
+      "host": "0.0.0.0",
+      "port": 8000
+    },
+    "session": {
+      "cookie_name": "__Host-rtmf_session",
+      "secure_cookie": true,
+      "absolute_timeout_seconds": 28800
+    }
+  },
+  "resources": {
+    "aistor": {
+      "endpoint": "storage.example:9000",
+      "secure": false,
+      "access_key": "${RTMF_AISTOR_ACCESS_KEY}",
+      "secret_key": "${RTMF_AISTOR_SECRET_KEY}"
+    },
+    "jobs_database": {
+      "dsn": "${RTMF_JOBS_POSTGRES_DSN}"
+    },
+    "simulators_database": {
+      "dsn": "${RTMF_SIMULATORS_REPOSITORY_POSTGRES_DSN}"
+    },
+    "executor_identity": {
+      "user": "${JOB_EXECUTOR_USER}",
+      "group": "${JOB_EXECUTOR_GROUP}"
+    },
+    "results_storage": {
+      "$ref": "#/resources/aistor",
+      "bucket": "jobs-results"
+    },
+    "matrix_storage": {
+      "$ref": "#/resources/aistor",
+      "bucket": "tmp"
+    },
+    "system_discovery_storage": {
+      "$ref": "#/resources/aistor",
+      "bucket": "system-discovery"
+    }
+  },
+  "endpoints": {
+    "jobs_scheduler": {
+      "base_url": "http://jobs-scheduler.example:63200",
+      "timeout_seconds": 10,
+      "auth_token": "${RTMF_JOBS_SCHEDULER_AUTH_TOKEN:}"
+    },
+    "simulators_repository": {
+      "base_url": "http://simulators-repository.example:63400",
+      "timeout_seconds": 10,
+      "auth_token": "${RTMF_SIMULATORS_REPOSITORY_AUTH_TOKEN:}"
+    },
+    "analytics": {
+      "base_url": "http://analytics.example:63100",
+      "timeout_seconds": 10,
+      "auth_token": "${RTMF_ANALYTICS_AUTH_TOKEN:}"
+    },
+    "visualization": {
+      "base_url": "http://visualization.example:63500",
+      "timeout_seconds": 10,
+      "auth_token": "${RTMF_VISUALIZATION_AUTH_TOKEN:}"
+    },
+    "parser": {
+      "base_url": "http://parser.example:63700",
+      "timeout_seconds": 10,
+      "auth_token": "${RTMF_PARSER_AUTH_TOKEN:}"
+    },
+    "matrix_generator": {
+      "base_url": "http://matrix-generation.example:63300",
+      "timeout_seconds": 10
+    },
+    "system_discovery": {
+      "base_url": "http://system-discovery.example:63800",
+      "timeout_seconds": 10,
+      "auth_token": "${RTMF_SYSTEM_DISCOVERY_AUTH_TOKEN:}"
+    },
+    "evaluator": {
+      "base_url": "http://evaluator.example:63600",
+      "timeout_seconds": 10
+    }
+  },
+  "runtime": {
+    "services": {
+      "front": {
+        "rest": {
+          "$ref": "#/defaults/rest",
+          "debug": false
+        },
+        "flask": {
+          "secret_key": "${RTMF_SECRET_KEY}",
+          "simulation_models": "./sim_models/",
+          "simulation_runs": "./sim_workspace/"
+        },
+        "authentication": {
+          "callback_url": "https://rtmf.example/auth/callback",
+          "session": {
+            "$ref": "#/defaults/session"
+          }
+        }
+      },
+      "use_case": {
+        "clients": {
+          "jobs_scheduler": {
+            "$ref": "#/endpoints/jobs_scheduler"
+          },
+          "simulators_repository": {
+            "$ref": "#/endpoints/simulators_repository"
+          },
+          "analytics": {
+            "$ref": "#/endpoints/analytics"
+          },
+          "visualization": {
+            "$ref": "#/endpoints/visualization"
+          },
+          "parser": {
+            "$ref": "#/endpoints/parser"
+          },
+          "matrix_generator": {
+            "$ref": "#/endpoints/matrix_generator"
+          },
+          "system_discovery": {
+            "$ref": "#/endpoints/system_discovery"
+          },
+          "evaluator": {
+            "$ref": "#/endpoints/evaluator"
+          }
+        },
+        "aistor": {
+          "$ref": "#/resources/aistor"
+        },
+        "adapters": {
+          "system_discovery_aistor": {
+            "$ref": "#/resources/system_discovery_storage"
+          }
+        },
+        "postgres": {
+          "jobs_repository": {
+            "$ref": "#/resources/jobs_database"
+          },
+          "evaluations_store": {
+            "$ref": "#/resources/jobs_database"
+          }
+        },
+        "storage": {
+          "system_discovery_training_results": {
+            "$ref": "#/resources/system_discovery_storage"
+          }
+        },
+        "system_discovery": {
+          "training_queue_cleanup": {
+            "enabled": true,
+            "interval_seconds": 86400,
+            "terminal_retention_days": 30
+          }
+        },
+        "authentication": {
+          "identity_provider": "keycloak",
+          "session": {
+            "$ref": "#/defaults/session",
+            "idle_timeout_seconds": 1800,
+            "refresh_skew_seconds": 300,
+            "token_pepper": "${RTMF_SESSION_TOKEN_PEPPER}"
+          },
+          "keycloak": {
+            "issuer_url": "https://identity.example/realms/rtmf",
+            "client_id": "rtmf-web",
+            "client_secret": "${RTMF_KEYCLOAK_CLIENT_SECRET}",
+            "token_encryption_key": "${RTMF_KEYCLOAK_TOKEN_ENCRYPTION_KEY}",
+            "permissions_client_id": "rtmf-use-case",
+            "expected_access_token_audience": "rtmf-use-case",
+            "allow_insecure_http_for_local_development": false,
+            "discovery_cache_seconds": 300,
+            "jwks_cache_seconds": 300,
+            "pending_login_ttl_seconds": 300,
+            "token_request_timeout_seconds": 10,
+            "clock_skew_seconds": 60
+          }
+        }
+      },
+      "analytics": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        },
+        "aistor": {
+          "$ref": "#/resources/results_storage"
+        },
+        "core": {
+          "download_workers": 12,
+          "jobs_inflight_ttl_seconds": 900
+        }
+      },
+      "jobs_scheduler": {
+        "rest": {
+          "$ref": "#/defaults/rest",
+          "reload": false
+        },
+        "slurm": {
+          "base_url": "http://slurm.example:6820",
+          "api_version": "v0.0.43",
+          "user_name": "${SLURM_USER_NAME}",
+          "partition": null,
+          "job_name_prefix": "simulation",
+          "working_directory": "/tmp/workspace",
+          "stdout": "/tmp/workspace/%A/%a/simulation.out",
+          "stderr": "/tmp/workspace/%A/%a/simulation.err",
+          "docker_username": "${APPTAINER_DOCKER_USERNAME}",
+          "docker_password": "${APPTAINER_DOCKER_PASSWORD}",
+          "minio_endpoint": {
+            "$ref": "#/resources/aistor/endpoint"
+          },
+          "minio_user": {
+            "$ref": "#/resources/aistor/access_key"
+          },
+          "minio_password": {
+            "$ref": "#/resources/aistor/secret_key"
+          },
+          "job_executor_user": {
+            "$ref": "#/resources/executor_identity/user"
+          },
+          "job_executor_group": {
+            "$ref": "#/resources/executor_identity/group"
+          },
+          "postgres_dsn": {
+            "$ref": "#/resources/jobs_database/dsn"
+          },
+          "request_timeout_seconds": 10.0,
+          "token_timeout_seconds": 3600
+        },
+        "postgres": {
+          "jobs_repository": {
+            "$ref": "#/resources/jobs_database"
+          }
+        }
+      },
+      "simulators_repository": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        },
+        "build_worker": {
+          "harbor_registry": "registry.example",
+          "harbor_project": "rtmf-simulators",
+          "harbor_username": "${RTMF_HARBOR_USERNAME}",
+          "harbor_password": "${RTMF_HARBOR_PASSWORD}",
+          "buildkit_addr": "tcp://buildkit:64000",
+          "buildkit_platform": "linux/amd64",
+          "workspace_root": "/tmp/rtmf/build_worker",
+          "base_python_image_prefix": "base/worker-0.1.0-base-python",
+          "base_java_image_prefix": "base/worker-0.1.0-base-java",
+          "base_native_image": "base/worker-0.1.0-base-native"
+        },
+        "core": {
+          "concurrent_builds": 1,
+          "builds_poll_interval": 0.4,
+          "storage_poll_interval": 1.0
+        },
+        "postgres": {
+          "simulators_repository": {
+            "$ref": "#/resources/simulators_database"
+          }
+        }
+      },
+      "matrix_generation": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        },
+        "logging": {
+          "level": "INFO"
+        },
+        "aistor": {
+          "$ref": "#/resources/matrix_storage"
+        },
+        "matrix": {
+          "output_prefix": "matrix"
+        }
+      },
+      "visualization": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        },
+        "executor": {
+          "max_workers": 4,
+          "delete_after_return": false,
+          "cleanup_interval": 900
+        }
+      },
+      "job_executor": {
+        "aistor": {
+          "$ref": "#/resources/results_storage"
+        },
+        "executor": {
+          "$ref": "#/resources/executor_identity"
+        },
+        "postgres": {
+          "jobs_repository": {
+            "$ref": "#/resources/jobs_database"
+          }
+        }
+      },
+      "evaluator": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        },
+        "clients": {
+          "jobs_scheduler": {
+            "$ref": "#/endpoints/jobs_scheduler"
+          },
+          "simulators_repository": {
+            "$ref": "#/endpoints/simulators_repository"
+          },
+          "analytics": {
+            "$ref": "#/endpoints/analytics"
+          },
+          "parser": {
+            "$ref": "#/endpoints/parser"
+          },
+          "matrix_generator": {
+            "$ref": "#/endpoints/matrix_generator"
+          },
+          "aistor_results": {
+            "$ref": "#/resources/results_storage"
+          }
+        },
+        "postgres": {
+          "jobs_repository": {
+            "$ref": "#/resources/jobs_database"
+          },
+          "evaluations_store": {
+            "$ref": "#/resources/jobs_database"
+          }
+        }
+      },
+      "parser": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        },
+        "jobs": {
+          "workspace": "./src/services/parser/workspace"
+        }
+      },
+      "system_discovery": {
+        "rest": {
+          "$ref": "#/defaults/rest"
+        }
+      }
+    }
+  },
+  "deployment": {
+    "name": "rtmf",
+    "images": {
+      "repository": "rtmf",
+      "tag": "latest"
+    },
+    "services": {
+      "front": {
+        "publish": {
+          "host": "0.0.0.0",
+          "port": 63000
+        }
+      },
+      "analytics": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63100
+        }
+      },
+      "jobs_scheduler": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63200
+        },
+        "compose": {
+          "services": {
+            "jobs_scheduler": {
+              "volumes": [
+                {
+                  "type": "bind",
+                  "source": "/usr/bin/scontrol",
+                  "target": "/usr/bin/scontrol",
+                  "read_only": true,
+                  "bind": {
+                    "create_host_path": false
+                  }
+                },
+                {
+                  "type": "bind",
+                  "source": "/etc/slurm",
+                  "target": "/etc/slurm",
+                  "read_only": true,
+                  "bind": {
+                    "create_host_path": false
+                  }
+                },
+                {
+                  "type": "bind",
+                  "source": "/usr/lib/x86_64-linux-gnu/slurm",
+                  "target": "/usr/lib/x86_64-linux-gnu/slurm",
+                  "read_only": true,
+                  "bind": {
+                    "create_host_path": false
+                  }
+                },
+                {
+                  "type": "bind",
+                  "source": "/lib/x86_64-linux-gnu/libmunge.so.2",
+                  "target": "/lib/x86_64-linux-gnu/libmunge.so.2",
+                  "read_only": true,
+                  "bind": {
+                    "create_host_path": false
+                  }
+                },
+                {
+                  "type": "bind",
+                  "source": "/run/munge",
+                  "target": "/run/munge",
+                  "read_only": true,
+                  "bind": {
+                    "create_host_path": false
+                  }
+                },
+                {
+                  "type": "bind",
+                  "source": "/tmp/workspace",
+                  "target": "/tmp/workspace",
+                  "read_only": true,
+                  "bind": {
+                    "create_host_path": false
+                  }
+                }
+              ],
+              "healthcheck": {
+                "test": [
+                  "CMD",
+                  "python",
+                  "-c",
+                  "import json, os, urllib.request; c=json.load(open(os.environ['RTMF_MAIN_CONFIGURATION_FILE'])); p=c['services']['jobs_scheduler']['rest']['port']; urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=2).read()"
+                ],
+                "interval": "30s",
+                "timeout": "5s",
+                "retries": 3
+              }
+            }
+          }
+        }
+      },
+      "matrix_generation": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63300
+        },
+        "endpoint": "matrix_generator"
+      },
+      "simulators_repository": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63400
+        },
+        "compose": {
+          "services": {
+            "buildkit": {
+              "image": "moby/buildkit:v0.31.2-rootless",
+              "restart": "unless-stopped",
+              "command": [
+                "--addr",
+                "tcp://0.0.0.0:64000"
+              ],
+              "security_opt": [
+                "seccomp=unconfined",
+                "apparmor=unconfined",
+                "systempaths=unconfined"
+              ],
+              "volumes": [
+                "buildkit_state:/home/user/.local/share/buildkit"
+              ],
+              "networks": [
+                "buildkit_network"
+              ],
+              "healthcheck": {
+                "test": [
+                  "CMD",
+                  "buildctl",
+                  "--addr",
+                  "tcp://127.0.0.1:64000",
+                  "debug",
+                  "workers"
+                ],
+                "interval": "5s",
+                "timeout": "5s",
+                "retries": 12,
+                "start_period": "10s"
+              }
+            },
+            "simulators_repository": {
+              "depends_on": {
+                "buildkit": {
+                  "condition": "service_healthy"
+                }
+              },
+              "networks": [
+                "default",
+                "buildkit_network"
+              ]
+            }
+          },
+          "volumes": {
+            "buildkit_state": {}
+          },
+          "networks": {
+            "buildkit_network": {}
+          }
+        }
+      },
+      "visualization": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63500
+        }
+      },
+      "evaluator": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63600
+        }
+      },
+      "parser": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63700
+        }
+      },
+      "system_discovery": {
+        "publish": {
+          "host": "127.0.0.1",
+          "port": 63800
+        }
+      }
+    },
+    "local_endpoints": true
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "shared": {
+    "aistor": {
+      "endpoint": "127.0.0.1:9000",
+      "secure": false
+    }
+  },
+  "services": {
+    "front": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 5000,
+        "debug": true
+      },
+      "flask": {
+        "secret_key": "dev-local-secret",
+        "simulation_models": "./sim_models/",
+        "simulation_runs": "./sim_workspace/"
+      },
+      "authentication": {
+        "callback_url": "http://localhost:5000/auth/callback",
+        "session": {
+          "cookie_name": "rtmf_session",
+          "secure_cookie": false,
+          "absolute_timeout_seconds": 28800
+        }
+      }
+    },
+    "use_case": {
+      "clients": {
+        "jobs_scheduler": {
+          "base_url": "http://127.0.0.1:63200",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "simulators_repository": {
+          "base_url": "http://127.0.0.1:63400",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "analytics": {
+          "base_url": "http://127.0.0.1:63100",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "visualization": {
+          "base_url": "http://127.0.0.1:63500",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "parser": {
+          "base_url": "http://127.0.0.1:55000",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "matrix_generator": {
+          "base_url": "http://127.0.0.1:63300",
+          "timeout_seconds": 10
+        },
+        "system_discovery": {
+          "base_url": "http://127.0.0.1:65000",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "evaluator": {
+          "base_url": "http://127.0.0.1:63600",
+          "timeout_seconds": 10
+        }
+      },
+      "aistor": {
+        "endpoint": "127.0.0.1:9000",
+        "secure": false,
+        "access_key": "minioadmin",
+        "secret_key": "minioadmin"
+      },
+      "adapters": {
+        "system_discovery_aistor": {
+          "endpoint": "127.0.0.1:9000",
+          "secure": false,
+          "bucket": "system-discovery",
+          "access_key": "minioadmin",
+          "secret_key": "minioadmin"
+        }
+      },
+      "postgres": {
+        "jobs_repository": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        },
+        "evaluations_store": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        }
+      },
+      "storage": {
+        "system_discovery_training_results": {
+          "endpoint": "127.0.0.1:9000",
+          "secure": false,
+          "bucket": "system-discovery",
+          "access_key": "minioadmin",
+          "secret_key": "minioadmin"
+        }
+      },
+      "system_discovery": {
+        "training_queue_cleanup": {
+          "enabled": true,
+          "interval_seconds": 86400,
+          "terminal_retention_days": 30
+        }
+      },
+      "authentication": {
+        "identity_provider": "keycloak",
+        "session": {
+          "cookie_name": "rtmf_session",
+          "idle_timeout_seconds": 1800,
+          "absolute_timeout_seconds": 28800,
+          "refresh_skew_seconds": 300,
+          "token_pepper": "${RTMF_SESSION_TOKEN_PEPPER}",
+          "secure_cookie": false
+        },
+        "keycloak": {
+          "issuer_url": "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/rtmf",
+          "client_id": "${RTMF_KEYCLOAK_CLIENT_ID}",
+          "client_secret": "${RTMF_KEYCLOAK_CLIENT_SECRET}",
+          "token_encryption_key": "${RTMF_KEYCLOAK_TOKEN_ENCRYPTION_KEY}",
+          "permissions_client_id": "rtmf-use-case",
+          "expected_access_token_audience": "rtmf-use-case",
+          "allow_insecure_http_for_local_development": true,
+          "discovery_cache_seconds": 300,
+          "jwks_cache_seconds": 300,
+          "pending_login_ttl_seconds": 300,
+          "token_request_timeout_seconds": 10,
+          "clock_skew_seconds": 60
+        }
+      }
+    },
+    "analytics": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 63100
+      },
+      "aistor": {
+        "endpoint": "127.0.0.1:9000",
+        "secure": false,
+        "bucket": "jobs-results",
+        "access_key": "minioadmin",
+        "secret_key": "minioadmin"
+      },
+      "core": {
+        "download_workers": 12,
+        "jobs_inflight_ttl_seconds": 900
+      }
+    },
+    "jobs_scheduler": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 63200,
+        "reload": true
+      },
+      "slurm": {
+        "base_url": "http://127.0.0.1:6820",
+        "api_version": "v0.0.43",
+        "user_name": "local-user",
+        "partition": null,
+        "job_name_prefix": "simulation",
+        "working_directory": "/tmp/rtmf/workspace",
+        "stdout": "/tmp/rtmf/workspace/%A/%a/simulation.out",
+        "stderr": "/tmp/rtmf/workspace/%A/%a/simulation.err",
+        "docker_username": "",
+        "docker_password": "",
+        "minio_endpoint": "127.0.0.1:9000",
+        "minio_user": "minioadmin",
+        "minio_password": "minioadmin",
+        "job_executor_user": "1000",
+        "job_executor_group": "1000",
+        "postgres_dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+      },
+      "postgres": {
+        "jobs_repository": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        }
+      }
+    },
+    "simulators_repository": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 63400
+      },
+      "build_worker": {
+        "harbor_registry": "127.0.0.1:5000",
+        "harbor_project": "rtmf-simulators",
+        "harbor_username": "",
+        "harbor_password": "",
+        "buildkit_addr": "tcp://127.0.0.1:1234",
+        "buildkit_platform": "linux/amd64",
+        "workspace_root": "/tmp/rtmf/build_worker",
+        "base_python_image_prefix": "base/worker-0.1.0-base-python",
+        "base_java_image_prefix": "base/worker-0.1.0-base-java",
+        "base_native_image": "base/worker-0.1.0-base-native"
+      },
+      "core": {
+        "concurrent_builds": 1,
+        "builds_poll_interval": 0.4,
+        "storage_poll_interval": 1.0
+      },
+      "postgres": {
+        "simulators_repository": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        }
+      }
+    },
+    "matrix_generation": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 63300
+      },
+      "logging": {
+        "level": "INFO"
+      },
+      "aistor": {
+        "endpoint": "127.0.0.1:9000",
+        "bucket": "tmp",
+        "secure": false,
+        "access_key": "minioadmin",
+        "secret_key": "minioadmin"
+      },
+      "matrix": {
+        "output_prefix": "matrix"
+      }
+    },
+    "visualization": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 63500
+      },
+      "executor": {
+        "max_workers": 4,
+        "delete_after_return": false,
+        "cleanup_interval": 900
+      }
+    },
+    "evaluator": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 63600
+      },
+      "clients": {
+        "jobs_scheduler": {
+          "base_url": "http://127.0.0.1:63200",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "simulators_repository": {
+          "base_url": "http://127.0.0.1:63400",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "analytics": {
+          "base_url": "http://127.0.0.1:63100",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "parser": {
+          "base_url": "http://127.0.0.1:55000",
+          "timeout_seconds": 10,
+          "auth_token": ""
+        },
+        "matrix_generator": {
+          "base_url": "http://127.0.0.1:63300",
+          "timeout_seconds": 10
+        },
+        "aistor_results": {
+          "endpoint": "http://127.0.0.1:9000",
+          "bucket": "jobs-results",
+          "secure": false,
+          "access_key": "minioadmin",
+          "secret_key": "minioadmin"
+        }
+      },
+      "postgres": {
+        "jobs_repository": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        },
+        "evaluations_store": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        }
+      }
+    },
+    "job_executor": {
+      "aistor": {
+        "endpoint": "127.0.0.1:9000",
+        "bucket": "jobs-results",
+        "secure": false,
+        "access_key": "minioadmin",
+        "secret_key": "minioadmin"
+      },
+      "executor": {
+        "user": "1000",
+        "group": "1000"
+      },
+      "postgres": {
+        "jobs_repository": {
+          "dsn": "postgresql://rtmf:rtmf@127.0.0.1:5432/rtmf"
+        }
+      }
+    },
+    "system_discovery": {
+      "rest": {
+        "host": "127.0.0.1",
+        "port": 65000
+      }
+    }
+  }
+}

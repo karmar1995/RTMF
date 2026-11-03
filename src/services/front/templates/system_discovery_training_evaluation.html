@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}System Discovery Model Evaluation{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% if training and result %}
+  {% if result.state.value == "postprocessing" or (result.results_plot and result.results_plot.state.value == "pending") or (result.cdf_plot and result.cdf_plot.state.value == "pending") or (result.scatter_plot and result.scatter_plot.state.value == "pending") %}
+    <meta http-equiv="refresh" content="5">
+  {% endif %}
+
+  <div class="d-flex flex-column flex-md-row align-items-md-start justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">System Discovery Model Evaluation</h1>
+      <p class="text-muted mb-0">Training <code>{{ training.training_id }}</code></p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ training.detail_url }}" class="btn btn-outline-secondary">Back to training</a>
+      {% if result.can_save_model %}
+        <form method="post" action="{{ url_for('onSystemDiscoveryTrainingEvaluationSave', training_id=training.training_id) }}">
+          <button type="submit" class="btn btn-primary">Save model</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if result.state.value == "postprocessing" %}
+    <div class="alert alert-info" role="alert">Waiting for model evaluation. This page will refresh automatically.</div>
+  {% elif result.state.value == "failed" %}
+    <div class="alert alert-warning" role="alert">{{ result.message or "Model evaluation is currently unavailable." }}</div>
+  {% elif result.state.value == "not_completed" %}
+    <div class="alert alert-warning" role="alert">{{ result.message or "Model evaluation is available only for completed trainings." }}</div>
+  {% elif result.state.value == "ready" %}
+    {% include "_system_discovery_evaluation_content.html" %}
+  {% endif %}
+{% else %}
+  <h1>System Discovery Model Evaluation</h1>
+  <p class="text-muted">Training record was not found.</p>
+  <a href="{{ url_for('onSystemDiscoveryTrainingQueue') }}" class="btn btn-outline-primary">Back to Training queue</a>
+{% endif %}
+{% endblock %}

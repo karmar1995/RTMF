@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% block title %}Register Simulator{% endblock %}
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <h1>Register Simulator</h1>
+  <p>Please fill out the form below to register a new simulator.</p>
+
+  <form class="mt-4" enctype="multipart/form-data" method="post" action="{{ url_for('onRegisterModel') }}">
+    <!-- Model Name -->
+    <div class="mb-3">
+      <label for="modelName" class="form-label">Model Name</label>
+      <input type="text" class="form-control" id="modelName" name="modelName" placeholder="Enter model name" required>
+    </div>
+
+    <!-- File Upload -->
+    <div class="mb-3">
+      <label for="modelFile" class="form-label">Model File (.zip)</label>
+      <input type="file" class="form-control" id="modelFile" name="modelFile" accept=".zip" required>
+      <div class="form-text">Upload your model packaged as a .zip file.</div>
+    </div>
+
+    <!-- Input Parameters -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Input Parameters</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="addInputParamBtn">Add Parameter</button>
+      </div>
+      <div class="card-body">
+        <div id="inputParamsList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Each parameter requires a name and a type (allowed types:
+          <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>).
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Parameters -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Output Parameters</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="addOutputParamBtn">Add Parameter</button>
+      </div>
+      <div class="card-body">
+        <div id="outputParamsList" class="vstack gap-2"></div>
+        <div class="form-text">
+          Each parameter requires a name and a type (allowed types:
+          <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>,
+          <code>str time series</code>, <code>int time series</code>,
+          <code>float time series</code>, <code>bool time series</code>).
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulator Required Runtime -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <span>Simulator Required Runtime</span>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="form-text">Platform is fixed to Linux / amd64 for now.</div>
+          <input type="hidden" name="platform[os]" value="linux">
+          <input type="hidden" name="platform[arch]" value="amd64">
+          <input type="hidden" name="platform[variant]" value="">
+        </div>
+
+        <div class="mb-3">
+          <label for="techType" class="form-label">Technology Type</label>
+          <select class="form-select" id="techType" name="technology[type]" required>
+            <option value="python" selected>python</option>
+            <option value="java">java</option>
+            <option value="dotnet">dotnet</option>
+            <option value="native">native</option>
+          </select>
+        </div>
+
+        <div id="tech-python" class="border rounded p-3 mb-3">
+          <div class="fw-semibold mb-2">Python</div>
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">Version</label>
+              <input type="text" class="form-control" name="technology[python][version]" placeholder="3.11">
+            </div>
+            <div class="col-md-4">
+              <input type="hidden" name="technology[python][venv]" value="true">
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label class="form-label">Requirements.txt Upload</label>
+            <input type="file" class="form-control" name="pythonRequirementsFile" accept=".txt">
+            <div class="form-text">Optional. Parsed and merged with manual packages (manual wins on conflicts).</div>
+          </div>
+
+          <div class="mt-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>Packages</span>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="addPythonPackageBtn">Add Package</button>
+            </div>
+            <div id="pythonPackagesList" class="vstack gap-2"></div>
+            <div class="form-text">Each package requires a name; version is optional.</div>
+          </div>
+        </div>
+
+        <div id="tech-java" class="border rounded p-3 mb-3 d-none">
+          <div class="fw-semibold mb-2">Java</div>
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">Distribution</label>
+              <input type="text" class="form-control" name="technology[java][distribution]" placeholder="eclipse-temurin">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Version</label>
+              <input type="text" class="form-control" name="technology[java][version]" placeholder="17">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">App Type</label>
+              <input type="text" class="form-control" name="technology[java][app_type]" placeholder="jar">
+            </div>
+          </div>
+        </div>
+
+        <div id="tech-dotnet" class="border rounded p-3 mb-3 d-none">
+          <div class="fw-semibold mb-2">.NET</div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Version</label>
+              <input type="text" class="form-control" name="technology[dotnet][version]" placeholder="8.0">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Flavor</label>
+              <select class="form-select" name="technology[dotnet][flavor]">
+                <option value="">(default)</option>
+                <option value="runtime">runtime</option>
+                <option value="aspnet">aspnet</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary">Register Simulator</button>
+    </div>
+  </form>
+
+  <!-- Row template (hidden) -->
+  <template id="paramRowTemplateInput">
+    <div class="row g-2 align-items-end param-row">
+      <div class="col-md-7">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control param-name" placeholder="e.g. temperature" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Type</label>
+        <select class="form-select param-type" data-allowed="input" required>
+          <option value="str">str</option>
+          <option value="int">int</option>
+          <option value="float">float</option>
+          <option value="bool">bool</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex">
+        <button type="button" class="btn btn-outline-danger w-100 remove-param-btn">Remove</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="paramRowTemplateOutput">
+    <div class="row g-2 align-items-end param-row">
+      <div class="col-md-7">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control param-name" placeholder="e.g. temperature" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Type</label>
+        <select class="form-select param-type" data-allowed="output" required>
+          <option value="str">str</option>
+          <option value="int">int</option>
+          <option value="float">float</option>
+          <option value="bool">bool</option>
+          <option value="str_ts">str time series</option>
+          <option value="int_ts">int time series</option>
+          <option value="float_ts">float time series</option>
+          <option value="bool_ts">bool time series</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex">
+        <button type="button" class="btn btn-outline-danger w-100 remove-param-btn">Remove</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="packageRowTemplate">
+    <div class="row g-2 align-items-end package-row">
+      <div class="col-md-6">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control package-name" placeholder="e.g. numpy">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Version</label>
+        <input type="text" class="form-control package-version" placeholder="e.g. 1.26.4">
+      </div>
+      <div class="col-md-2 d-flex">
+        <button type="button" class="btn btn-outline-danger w-100 remove-row-btn">Remove</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Page-specific JS -->
+  <script>
+    const INPUT_TYPES = ["str", "int", "float", "bool"];
+    const OUTPUT_TYPES = ["str", "int", "float", "bool", "str_ts", "int_ts", "float_ts", "bool_ts"];
+
+    const inputParamsList = document.getElementById('inputParamsList');
+    const outputParamsList = document.getElementById('outputParamsList');
+    const addInputBtn = document.getElementById('addInputParamBtn');
+    const addOutputBtn = document.getElementById('addOutputParamBtn');
+    const inputRowTpl = document.getElementById('paramRowTemplateInput');
+    const outputRowTpl = document.getElementById('paramRowTemplateOutput');
+    const packageTpl = document.getElementById('packageRowTemplate');
+    const techType = document.getElementById('techType');
+    const techPython = document.getElementById('tech-python');
+    const techJava = document.getElementById('tech-java');
+    const techDotnet = document.getElementById('tech-dotnet');
+
+    const pythonPackagesList = document.getElementById('pythonPackagesList');
+    const addPythonPackageBtn = document.getElementById('addPythonPackageBtn');
+
+    function addParamRow(container, groupName, tpl) {
+      const node = tpl.content.firstElementChild.cloneNode(true);
+
+      // Unique index based on current rows
+      const idx = container.querySelectorAll('.param-row').length;
+
+      // Wire inputs and names to submit as arrays: inputParams[0][name], inputParams[0][type], etc.
+      const nameInput = node.querySelector('.param-name');
+      const typeSelect = node.querySelector('.param-type');
+
+      nameInput.name = `${groupName}[${idx}][name]`;
+      typeSelect.name = `${groupName}[${idx}][type]`;
+
+      // Remove handler
+      node.querySelector('.remove-param-btn').addEventListener('click', () => {
+        node.remove();
+        reindex(container, groupName);
+      });
+
+      container.appendChild(node);
+    }
+
+    function addPackageRow(container, groupName) {
+      const node = packageTpl.content.firstElementChild.cloneNode(true);
+      const idx = container.querySelectorAll('.package-row').length;
+      const nameInput = node.querySelector('.package-name');
+      const versionInput = node.querySelector('.package-version');
+
+      nameInput.name = `${groupName}[${idx}][name]`;
+      versionInput.name = `${groupName}[${idx}][version]`;
+
+      node.querySelector('.remove-row-btn').addEventListener('click', () => {
+        node.remove();
+        reindexPackage(container, groupName);
+      });
+
+      container.appendChild(node);
+    }
+
+    function reindexPackage(container, groupName) {
+      [...container.querySelectorAll('.package-row')].forEach((row, i) => {
+        row.querySelector('.package-name').name = `${groupName}[${i}][name]`;
+        row.querySelector('.package-version').name = `${groupName}[${i}][version]`;
+      });
+    }
+
+    function reindex(container, groupName) {
+      [...container.querySelectorAll('.param-row')].forEach((row, i) => {
+        row.querySelector('.param-name').name = `${groupName}[${i}][name]`;
+        row.querySelector('.param-type').name = `${groupName}[${i}][type]`;
+      });
+    }
+
+    // Add initial one row to each list
+    addParamRow(inputParamsList, 'inputParams', inputRowTpl);
+    addParamRow(outputParamsList, 'outputParams', outputRowTpl);
+
+    // Add button handlers
+    addInputBtn.addEventListener('click', () => addParamRow(inputParamsList, 'inputParams', inputRowTpl));
+    addOutputBtn.addEventListener('click', () => addParamRow(outputParamsList, 'outputParams', outputRowTpl));
+
+    addPythonPackageBtn.addEventListener('click', () => addPackageRow(pythonPackagesList, 'technology[python][packages]'));
+
+    function updateTechVisibility() {
+      const value = techType.value;
+      techPython.classList.toggle('d-none', value !== 'python');
+      techJava.classList.toggle('d-none', value !== 'java');
+      techDotnet.classList.toggle('d-none', value !== 'dotnet');
+    }
+
+    updateTechVisibility();
+    techType.addEventListener('change', updateTechVisibility);
+
+    // Client-side guard: ensure type remains one of allowed TYPES
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.classList.contains('param-type')) {
+        const allowed = e.target.dataset.allowed === 'output' ? OUTPUT_TYPES : INPUT_TYPES;
+        if (!allowed.includes(e.target.value)) {
+          e.target.value = allowed[0];
+        }
+      }
+    });
+  </script>
+
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Visualization — Job {{ job.uuid }}{% endblock %}
+{% block head %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/d3.v5.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/mpld3.v0.5.11.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/saveSvgAsPng.v1.4.17.min.js') }}"></script>
+{% endblock %}
+{% block content %}
+{% if job and job.state in ['waiting', 'running'] %}
+  <meta http-equiv="refresh" content="5">
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<h1 class="mb-3">Visualization — Job {{ job.uuid }}</h1>
+
+<!-- Status badge -->
+<p>
+  Status:
+  {% if job.state == "success" %}
+    <span class="badge bg-success">Success</span>
+  {% elif job.state == "error" %}
+    <span class="badge bg-danger">Error</span>
+  {% elif job.state == "running" %}
+    <span class="badge bg-warning text-dark">Running</span>
+  {% elif job.state == "waiting" %}
+    <span class="badge bg-secondary">Waiting</span>
+  {% else %}
+    <span class="badge bg-dark">{{ job.state }}</span>
+  {% endif %}
+</p>
+
+<!-- Metadata only -->
+<div class="card mb-4">
+  <div class="card-header">Job Metadata</div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">UUID</dt>
+      <dd class="col-sm-9"><code>{{ job.uuid }}</code></dd>
+
+      <dt class="col-sm-3">Script</dt>
+      <dd class="col-sm-9"><code>{{ job.script }}</code></dd>
+
+      <dt class="col-sm-3">Working directory</dt>
+      <dd class="col-sm-9"><code>{{ job.workdir }}</code></dd>
+
+      <dt class="col-sm-3">Standard output file</dt>
+      <dd class="col-sm-9"><code>{{ job.stdout_path }}</code></dd>
+
+      <dt class="col-sm-3">Standard errors file</dt>
+      <dd class="col-sm-9"><code>{{ job.stderr_path }}</code></dd>
+
+      <dt class="col-sm-3">Parameters</dt>
+      <dd class="col-sm-9">
+        {% if job.parameters %}
+          <pre class="small bg-light p-2">{{ job.parameters | tojson(indent=2) }}</pre>
+        {% else %}
+          <span class="text-muted">No parameters</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+</div>
+
+
+<!-- Form -->
+<div class="card mb-4">
+  <div class="card-header">Generate new plots</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('visualize', job_uuid=job.uuid) }}">
+      <h5>Plot type</h5>
+        <select class="form-select mb-3" name="renderer">
+          {% for renderer in renderers %}
+          <option value="{{ renderer }}" {% if renderer == saved_state.renderer %}selected{% endif %}>{{ renderer }}</option>
+          {% endfor %}
+        </select>
+      <h5>Inputs</h5>
+      {% for input in job.input_parameters %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" {% if input.name in saved_state.inputs %}checked{% endif %} name="inputs" value="{{ input.name }}" id="{{ input.name }}">
+        <label class="form-check-label" for="{{ input.name }}"> {{ input.name }} </label>
+        <input class="form-control mb-1" type="number" name="{{ input.name + "min" }}" min="{{ bounds[input.name]["min"] if bounds and input.name in bounds else '' }}" max="{{ bounds[input.name]["max"] if bounds and input.name in bounds else '' }}"
+        {%if input.name in saved_state.inputs %}
+          value="{{ saved_state.bounds[input.name+"min"] }}"
+        {% else %}
+          value="{{ bounds[input.name]["min"] if bounds and input.name in bounds else '' }}"
+        {% endif %}
+        >
+        <input class="form-control" type="number" name="{{ input.name + "max" }}" min="{{ bounds[input.name]["min"] if bounds and input.name in bounds else '' }}" max="{{ bounds[input.name]["max"] if bounds and input.name in bounds else ''}}"
+        {%if input.name in saved_state.inputs %}
+          value="{{ saved_state.bounds[input.name+"max"] }}"
+        {% else %}
+          value="{{ bounds[input.name]["max"] if bounds and input.name in bounds else '' }}"
+        {% endif %}
+        >
+      </div>
+      {% endfor %}
+      <h5 class="mt-4">Outputs</h5>
+      {% for output in job.output_parameters %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" {% if output.name in saved_state.outputs %}checked{% endif %} name="outputs" value="{{ output.name }}" id="{{ output.name }}">
+        <label class="form-check-label" for="{{ output.name }}"> {{ output.name }} </label>
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary mt-3">Generate plots</button>
+    </form>
+  </div>
+</div>
+
+
+{% if charts_html %}
+  <h2 class="mb-3"> Generated plots </h2>
+  {% for chart in charts_html %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>{{ chart.name }}</span>
+      <button class="btn btn-primary" onclick="save_chart_as_png('{{ chart.id }}')">
+        Download this plot
+      </button>
+    </div>
+    <div class="card-body" id="{{ chart.id }}">
+      {{ chart.chart | safe }}
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<!-- Navigation buttons -->
+<a href="{{ url_for('onSimulationVisualization') }}" class="btn btn-outline-primary">Back to Visualization</a>
+<a href="{{ url_for('job_detail', job_uuid=job.uuid) }}" class="btn btn-outline-secondary">Job Details</a>
+
+<script>
+  function save_chart_as_png(chart_id) {
+    const svg = document.getElementById(chart_id).querySelector("svg");
+    saveSvgAsPng(svg, chart_id + ".png", { backgroundColor: "white" });
+  }
+</script>
+
+<style>
+  .card-body {
+    position: relative;
+    overflow: auto;
+  }
+  svg {
+    display: block;
+  }
+</style>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+{% block title %}Monitor{% endblock %}
+
+{% block content %}
+{% if (waiting_total is defined and waiting_total > 0) or (running_total is defined and running_total > 0) %}
+  <meta http-equiv="refresh" content="10">
+{% endif %}
+
+<h1 class="mb-3">Monitor</h1>
+<p class="text-muted mb-4">Track queued, active, and completed jobs.</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, msg in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="row g-3">
+  <!-- Waiting -->
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span>Waiting</span>
+        <span class="badge bg-secondary">{{ waiting_total }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% if waiting_jobs %}
+          {% for job in waiting_jobs %}
+            <a
+              href="{{ job.link if job.link is defined else url_for('job_detail', job_uuid=job.uuid) }}"
+              class="list-group-item list-group-item-action d-flex justify-content-between align-items-center list-group-item-secondary"
+              title="Queued — click for details"
+            >
+              <span class="text-body">{{ job.name or ('Job #' ~ job.uuid) }}</span>
+              <small class="text-muted">{% if job.queued_at %}<span data-utc-datetime="{{ job.queued_at }}">{{ job.queued_at }}</span>{% endif %}</small>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="list-group-item text-muted">No jobs waiting.</div>
+        {% endif %}
+      </div>
+      {{ render_pagination(waiting_total, waiting_total_pages, waiting_page, per_page, waiting_page_items, 'onSimulationMonitor', 'jobs', page_param='waiting_page', aria_label='Waiting jobs pages', container_class='p-3') }}
+    </div>
+  </div>
+
+  <!-- Running -->
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span>Running</span>
+        <span class="badge bg-warning text-dark">{{ running_total }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% if running_jobs %}
+          {% for job in running_jobs %}
+            <a
+              href="{{ job.link if job.link is defined else url_for('job_detail', job_uuid=job.uuid) }}"
+              class="list-group-item list-group-item-action d-flex justify-content-between align-items-center list-group-item-warning"
+              title="In progress — click for details"
+            >
+              <div>
+                <span class="text-body">{{ job.name or ('Job #' ~ job.uuid) }}</span>
+                {% if job.progress is defined %}
+                  <span class="ms-2 badge bg-dark-subtle text-dark">{{ job.progress }}%</span>
+                {% endif %}
+              </div>
+              <small class="text-muted">{% if job.started_at %}<span data-utc-datetime="{{ job.started_at }}">{{ job.started_at }}</span>{% endif %}</small>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="list-group-item text-muted">No jobs running.</div>
+        {% endif %}
+      </div>
+      {{ render_pagination(running_total, running_total_pages, running_page, per_page, running_page_items, 'onSimulationMonitor', 'jobs', page_param='running_page', aria_label='Running jobs pages', container_class='p-3') }}
+    </div>
+  </div>
+
+  <!-- Finished -->
+  <div class="col-lg-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span>Finished</span>
+        <span class="badge bg-secondary">{{ finished_total }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% if finished_jobs %}
+          {% for job in finished_jobs %}
+            {# Expect either job.success (bool) or job.status in {"success","error"} #}
+            {% set is_ok = (job.success is defined and job.success) or (job.status == 'success') %}
+            <a
+              href="{{ job.link if job.link is defined else url_for('job_detail', job_uuid=job.uuid) }}"
+              class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {{ 'list-group-item-success' if is_ok else 'list-group-item-danger' }}"
+              title="Completed — click for details"
+            >
+              <div>
+                <span class="text-body">{{ job.name or ('Job #' ~ job.uuid) }}</span>
+                {% if is_ok %}
+                  <span class="ms-2 badge bg-success">Success</span>
+                {% else %}
+                  <span class="ms-2 badge bg-danger">Error</span>
+                {% endif %}
+              </div>
+              <small class="text-muted">{% if job.finished_at %}<span data-utc-datetime="{{ job.finished_at }}">{{ job.finished_at }}</span>{% endif %}</small>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="list-group-item text-muted">No jobs finished yet.</div>
+        {% endif %}
+      </div>
+      {{ render_pagination(finished_total, finished_total_pages, finished_page, per_page, finished_page_items, 'onSimulationMonitor', 'jobs', page_param='finished_page', aria_label='Finished jobs pages', container_class='p-3') }}
+    </div>
+  </div>
+</div>
+{% endblock %}

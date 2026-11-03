@@ -1,0 +1,2 @@
+#export HARBOR_BASE=172.16.237.193:80/base
+export HARBOR_BASE=192.168.100.236:80/base

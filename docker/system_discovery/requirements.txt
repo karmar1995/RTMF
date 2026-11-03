@@ -1,0 +1,9 @@
+fastapi
+dependency-injector
+uvicorn
+python-multipart
+pandas
+numpy
+scipy
+sysidentpy
+pydantic

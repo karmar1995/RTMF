@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+{% block title %}Recent Registrations{% endblock %}
+{% block content %}
+<h1>Recent Registrations</h1>
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-md-6">
+    <label class="form-label">Search</label>
+    <input type="text" class="form-control" name="q" value="{{ query }}" placeholder="Filter by ID or name">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Status</label>
+    <select class="form-select" name="status">
+      <option value="" {% if not status_filter %}selected{% endif %}>All</option>
+      <option value="running" {% if status_filter == 'running' %}selected{% endif %}>Running</option>
+      <option value="succeeded" {% if status_filter == 'succeeded' %}selected{% endif %}>Succeeded</option>
+      <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
+      <option value="unknown" {% if status_filter == 'unknown' %}selected{% endif %}>Unknown</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Apply</button>
+  </div>
+</form>
+
+<div class="list-group">
+  {% for item in registrations %}
+    <a href="{{ url_for('onRegistrationDetails', registration_id=item.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {{ item.row_class }}">
+      <div>
+        <div class="fw-semibold">{{ item.name }}</div>
+        <div class="small">{{ item.id }}</div>
+        <div class="small text-muted">{{ item.name }}</div>
+      </div>
+      <div class="text-end">
+        <div class="fw-semibold">{{ item.status }}</div>
+        <div class="small"><span data-utc-datetime="{{ item.created_at }}">{{ item.created_at }}</span></div>
+      </div>
+    </a>
+  {% else %}
+    <div class="list-group-item">No registrations found.</div>
+  {% endfor %}
+</div>
+
+{{ render_pagination(total, total_pages, page, per_page, page_items, 'onSimulatorRegistrationMonitor', 'registrations', {'q': query or None, 'status': status_filter or None}, aria_label='Recent registrations pages') }}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+{% block title %}System Discovery Simulations{% endblock %}
+
+{% block content %}
+{% if simulations and simulations|selectattr('badge_class', 'in', ['secondary', 'warning'])|list|length > 0 %}
+  <meta http-equiv="refresh" content="5">
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div>
+    <h1 class="mb-1">System Discovery Simulations</h1>
+    <p class="text-muted mb-0">Simulation runs started from saved System Discovery models</p>
+  </div>
+</div>
+
+{% if simulations %}
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Simulation ID</th>
+          <th scope="col">Source model</th>
+          <th scope="col">Created</th>
+          <th scope="col">Updated</th>
+          <th scope="col">State</th>
+          <th scope="col">Horizon</th>
+          <th scope="col">External control signals</th>
+          <th scope="col" class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for simulation in simulations %}
+          <tr>
+            <td><code>{{ simulation.simulation_id }}</code></td>
+            <td>{{ simulation.source_model_name }}</td>
+            <td><span data-utc-datetime="{{ simulation.created_at }}">{{ simulation.created_at }}</span></td>
+            <td><span data-utc-datetime="{{ simulation.updated_at }}">{{ simulation.updated_at }}</span></td>
+            <td><span class="badge text-bg-{{ simulation.badge_class }}">{{ simulation.state_label }}</span></td>
+            <td>{{ simulation.horizon }}</td>
+            <td>{{ simulation.external_control_signals }}</td>
+            <td class="text-end">
+              <a href="{{ simulation.detail_url }}" class="btn btn-sm btn-outline-primary">Details</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ render_pagination(total, total_pages, page, per_page, page_items, 'onSystemDiscoverySimulations', 'simulations', aria_label='System Discovery simulations pages') }}
+{% else %}
+  <p class="text-muted text-center">No System Discovery simulations are tracked yet. Choose a saved model and select Simulate.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+<div class="system-discovery-plot" style="min-height: 18rem;">
+  {% if plot and plot.state.value == "ready" and plot.plot_html %}
+    {{ plot.plot_html|safe }}
+  {% elif plot and plot.state.value == "pending" %}
+    <div class="plot-placeholder d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+      <span class="text-muted">{{ plot.waiting_message or "Waiting for visualization." }}</span>
+    </div>
+  {% elif plot and plot.state.value == "unavailable" %}
+    <div class="plot-placeholder d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+      <span class="text-muted">Visualization not available</span>
+    </div>
+  {% endif %}
+</div>

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}System Discovery Model Training{% endblock %}
+
+{% block content %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <h1>System Discovery Model Training</h1>
+  <p>Submit a System Discovery training request and track it in the local training queue.</p>
+
+  <form class="mt-4" enctype="multipart/form-data" method="post" action="{{ url_for('onSystemDiscoveryTrainSubmit') }}">
+    <h3 class="mb-4 text-primary border-bottom pb-2">Training</h3>
+
+    <p class="text-muted mb-4">
+      Upload one ZIP archive containing <code>data_train.csv</code> and <code>data_test.csv</code>, then provide typed training parameters.
+    </p>
+
+    <div class="card mb-4">
+      <div class="card-header">Training Archive</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="trainingArchive" class="form-label">Training ZIP archive</label>
+          <input type="file" class="form-control" id="trainingArchive" name="training_archive" accept=".zip" required>
+          <div class="form-text">The archive must include data_train.csv and data_test.csv.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header">Training Parameters</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="nlagsX" class="form-label">nlags-x</label>
+          <input type="text" class="form-control" id="nlagsX" name="nlags-x" placeholder="[[1, 2], [1, 2]]" value="{{ form_values.get('nlags-x', '') }}">
+          <div class="form-text">Optional. When supplied, use strict JSON nested integer array syntax, for example <code>[[1, 2], [1, 2]]</code>.</div>
+        </div>
+
+        <div class="mb-3">
+          <label for="nlagsY" class="form-label">nlags-y</label>
+          <input type="number" class="form-control" id="nlagsY" name="nlags-y" min="0" step="1" value="{{ form_values.get('nlags-y', '') }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="basis" class="form-label">basis</label>
+          <input type="text" class="form-control" id="basis" name="basis" placeholder="e.g. Polynomial" value="{{ form_values.get('basis', '') }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="degree" class="form-label">degree</label>
+          <input type="number" class="form-control" id="degree" name="degree" min="0" step="1" value="{{ form_values.get('degree', '') }}" required>
+        </div>
+
+        <div class="mb-0">
+          <label for="model" class="form-label">model</label>
+          <input type="text" class="form-control" id="model" name="model" placeholder="Model identifier" value="{{ form_values.get('model', '') }}" required>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-5">
+      <button type="submit" class="btn btn-primary">Start Training</button>
+    </div>
+  </form>
+{% endblock %}

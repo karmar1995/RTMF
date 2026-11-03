@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Simulation Job{% endblock %}
+{% block content %}
+{% if jobs and jobs|selectattr('status', 'in', ['waiting', 'running'])|list|length > 0 %}
+  <meta http-equiv="refresh" content="5">
+{% endif %}
+
+<h1>Simulation Job</h1>
+<p class="text-muted">Job {{ group_id }}</p>
+{% if created_at %}
+  <div class="text-muted mb-3">Start Time: <span data-utc-datetime="{{ created_at }}">{{ created_at }}</span></div>
+{% endif %}
+
+{% if jobs and jobs|length > 0 %}
+  {% set all_success = jobs|selectattr('status', 'equalto', 'successful')|list|length == jobs|length %}
+  {% if all_success %}
+    <div class="mb-3">
+      <button type="button" class="btn btn-outline-success visualize-group-btn"
+              data-href="{{ url_for('onSimulationGroupVisualize', job_id=group_id) }}">Visualize</button>
+    </div>
+  {% endif %}
+{% endif %}
+
+<div class="card">
+  <div class="card-header">Sub-jobs</div>
+  <div class="card-body p-0">
+    <div class="p-3 border-bottom">
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label">Sub-job ID</label>
+          <input type="text" class="form-control" id="filterJobId" placeholder="Filter">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Status</label>
+          <input type="text" class="form-control" id="filterStatus" placeholder="Filter">
+        </div>
+      </div>
+    </div>
+    {% if jobs and jobs|length > 0 %}
+      <table class="table mb-0" id="subJobsTable">
+        <thead>
+          <tr>
+            <th>
+              Sub-job ID
+              <button type="button" class="btn btn-sm btn-outline-secondary sort-btn" data-key="sub_job_id" data-dir="asc" aria-label="Sort Sub-job ID ascending">↑</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary sort-btn" data-key="sub_job_id" data-dir="desc" aria-label="Sort Sub-job ID descending">↓</button>
+            </th>
+            <th>
+              Status
+              <button type="button" class="btn btn-sm btn-outline-secondary sort-btn" data-key="status" data-dir="asc" aria-label="Sort Status ascending">↑</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary sort-btn" data-key="status" data-dir="desc" aria-label="Sort Status descending">↓</button>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="subJobsBody">
+          {% for job in jobs %}
+            {% set row_class =
+              'table-secondary' if job.status == 'waiting' else
+              'table-warning' if job.status == 'running' else
+              'table-success' if job.status == 'successful' else
+              'table-danger' %}
+            <tr class="{{ row_class }} job-row"
+                data-job-id="{{ job.job_id }}"
+                data-sub-job-id="{{ job.sub_job_id }}"
+                data-details-href="{{ url_for('onSimulationSubJobDetails', job_id=job.job_id, sub_job_id=job.sub_job_id) }}"
+                data-status="{{ job.status }}"
+            >
+              <td>{{ job.sub_job_id }}</td>
+              <td>{{ job.status }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="p-3 text-muted">No sub-jobs found for this job.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="{{ url_for('onSimulationMonitor', group_id=group_id) }}" class="btn btn-outline-secondary">Back to Monitor</a>
+</div>
+
+<script>
+  const filters = {
+    sub_job_id: document.getElementById('filterJobId'),
+    status: document.getElementById('filterStatus'),
+  };
+
+  const tbody = document.getElementById('subJobsBody');
+  const allRows = Array.from(document.querySelectorAll('.job-row')).map(row => ({
+    job_id: row.dataset.jobId || '',
+    sub_job_id: row.dataset.subJobId || '',
+    details_href: row.dataset.detailsHref || '',
+    status: row.dataset.status || '',
+    row_class: row.className,
+  }));
+
+  let sortKey = null;
+  let sortDir = 'asc';
+
+  function attachRowBehavior(tr) {
+    tr.addEventListener('mouseenter', () => tr.classList.add('row-hover'));
+    tr.addEventListener('mouseleave', () => tr.classList.remove('row-hover'));
+    tr.addEventListener('click', () => {
+      const href = tr.dataset.detailsHref;
+      if (href) window.location.href = href;
+    });
+  }
+
+  function renderRows(rows) {
+    tbody.innerHTML = '';
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.className = row.row_class;
+      tr.dataset.jobId = row.job_id;
+      tr.dataset.subJobId = row.sub_job_id;
+      tr.dataset.detailsHref = row.details_href;
+      tr.dataset.status = row.status;
+      tr.innerHTML = `
+        <td>${row.sub_job_id}</td>
+        <td>${row.status}</td>
+      `;
+      attachRowBehavior(tr);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function applyFiltersAndSort() {
+    const filtered = allRows.filter(row => {
+      return Object.entries(filters).every(([key, input]) => {
+        const val = (input.value || '').toLowerCase();
+        if (!val) return true;
+        return (row[key] || '').toLowerCase().includes(val);
+      });
+    });
+
+    const sorted = sortKey ? filtered.sort((a, b) => {
+      const av = (a[sortKey] || '').toLowerCase();
+      const bv = (b[sortKey] || '').toLowerCase();
+      const cmp = av.localeCompare(bv);
+      return sortDir === 'asc' ? cmp : -cmp;
+    }) : filtered;
+
+    renderRows(sorted);
+  }
+
+  function syncUrl() {
+    const params = new URLSearchParams(window.location.search);
+    Object.entries(filters).forEach(([key, input]) => {
+      const val = (input.value || '').trim();
+      if (val) {
+        params.set(key, val);
+      } else {
+        params.delete(key);
+      }
+    });
+    if (sortKey) {
+      params.set('sort', sortKey);
+      params.set('dir', sortDir);
+    } else {
+      params.delete('sort');
+      params.delete('dir');
+    }
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }
+
+  function syncSession() {
+    const payload = {
+      filters: Object.fromEntries(Object.entries(filters).map(([key, input]) => [key, input.value || ''])),
+      sort: sortKey,
+      dir: sortDir,
+    };
+    sessionStorage.setItem('simulationGroupFilters', JSON.stringify(payload));
+  }
+
+  function loadFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    Object.entries(filters).forEach(([key, input]) => {
+      input.value = params.get(key) || '';
+    });
+    sortKey = params.get('sort');
+    sortDir = params.get('dir') || 'asc';
+  }
+
+  function loadFromSession() {
+    try {
+      const stored = sessionStorage.getItem('simulationGroupFilters');
+      if (!stored) return false;
+      const parsed = JSON.parse(stored);
+      if (!parsed) return false;
+      Object.entries(filters).forEach(([key, input]) => {
+        input.value = (parsed.filters && parsed.filters[key]) || '';
+      });
+      sortKey = parsed.sort || null;
+      sortDir = parsed.dir || 'asc';
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function updateSortHighlights() {
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      const isActive = btn.dataset.key === sortKey && btn.dataset.dir === sortDir;
+      btn.classList.toggle('btn-secondary', isActive);
+      btn.classList.toggle('btn-outline-secondary', !isActive);
+    });
+  }
+
+  document.querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sortKey = btn.dataset.key;
+      sortDir = btn.dataset.dir;
+      syncUrl();
+      syncSession();
+      applyFiltersAndSort();
+      updateSortHighlights();
+    });
+  });
+
+  Object.values(filters).forEach(input => {
+    input.addEventListener('input', () => {
+      syncUrl();
+      syncSession();
+      applyFiltersAndSort();
+    });
+  });
+
+  if (!loadFromSession()) {
+    loadFromUrl();
+  }
+  applyFiltersAndSort();
+  updateSortHighlights();
+  document.querySelectorAll('.job-row').forEach(attachRowBehavior);
+
+  document.querySelectorAll('.visualize-group-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const href = btn.dataset.href;
+      if (href) window.location.href = href;
+    });
+  });
+</script>
+
+<style>
+  .job-row:hover {
+    cursor: pointer;
+    filter: brightness(0.95);
+  }
+  .row-hover {
+    outline: 2px solid rgba(0, 0, 0, 0.08);
+    outline-offset: -2px;
+  }
+</style>
+{% endblock %}

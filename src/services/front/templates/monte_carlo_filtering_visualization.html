@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Monte Carlo Filtering{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">Monte Carlo Filtering</h1>
+      <p class="text-muted mb-0">Job {{ group_id }}</p>
+    </div>
+    <a href="{{ url_for('onSimulationGroupVisualize', job_id=group_id) }}" class="btn btn-outline-secondary">Back to Visualization Modes</a>
+  </div>
+
+  {% if error_message %}
+    <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+  {% endif %}
+
+  {% include "_visualization_results_error.html" %}
+
+  {% if result and result.warning %}
+    <div class="alert alert-warning" role="alert">{{ result.warning }}</div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <div class="mb-4">
+          <h2 class="h5 mb-1">Monte Carlo Filtering Configuration</h2>
+          <p class="text-muted mb-0">Choose an output, the behavioural threshold and direction. Samples above (or below) the threshold are marked behavioural; input parameters driving that behaviour are found with the Smirnov test.</p>
+        </div>
+
+        <form method="get" action="{{ url_for('onSimulationJobPlot', job_id=group_id) }}" id="mcf-form">
+          <input type="hidden" name="plot" value="1">
+          <input type="hidden" name="mode" value="mcf">
+
+          <div class="card border rounded-3">
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-lg-6">
+                  <label for="y" class="form-label">Output parameter</label>
+                  <select id="y" name="y" class="form-select" data-role="y-select" required>
+                    {% for name, typ in result.output_params %}
+                      <option
+                        value="{{ name }}"
+                        data-param-type="{{ typ }}"
+                        {% if request.values.get("y") == name %}selected{% endif %}
+                      >{{ name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div class="col-lg-6" id="aggregation-row">
+                  <label for="aggregation" class="form-label">Time-series aggregation</label>
+                  <select id="aggregation" name="aggregation" class="form-select">
+                    <option value="">None</option>
+                    {% for stat in ["mean", "min", "max", "median", "p95"] %}
+                      <option value="{{ stat }}" {% if request.values.get("aggregation") == stat %}selected{% endif %}>{{ stat }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">Required when the selected output is a time series.</div>
+                </div>
+
+                <div class="col-lg-6">
+                  <label for="threshold" class="form-label">Behavioural threshold</label>
+                  <input
+                    id="threshold"
+                    name="threshold"
+                    type="number"
+                    step="any"
+                    class="form-control"
+                    value="{{ request.values.get('threshold', '') }}"
+                    placeholder="e.g. 0.5"
+                    required>
+                </div>
+
+                <div class="col-lg-6">
+                  <label class="form-label d-block">Behavioural direction</label>
+                  <div class="d-flex gap-4 mt-2">
+                    <div class="form-check">
+                      <input
+                        class="form-check-input"
+                        type="radio"
+                        name="direction"
+                        id="direction_greater"
+                        value="greater"
+                        {% if request.values.get("direction", "greater") == "greater" %}checked{% endif %}>
+                      <label class="form-check-label" for="direction_greater">Greater than threshold</label>
+                    </div>
+                    <div class="form-check">
+                      <input
+                        class="form-check-input"
+                        type="radio"
+                        name="direction"
+                        id="direction_less"
+                        value="less"
+                        {% if request.values.get("direction") == "less" %}checked{% endif %}>
+                      <label class="form-check-label" for="direction_less">Less than threshold</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-end gap-2">
+            <button type="submit" class="btn btn-primary" id="mcf-generate-plot">Generate Plot</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <p class="text-muted mb-0">Visualization options are still loading or currently unavailable.</p>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+{% if result and result.input_params and result.output_params %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const ySelect = document.querySelector("[data-role='y-select']");
+      const aggregationRow = document.getElementById("aggregation-row");
+      const aggregationSelect = document.getElementById("aggregation");
+      if (!ySelect || !aggregationRow || !aggregationSelect) {
+        return;
+      }
+
+      const allYOptions = [
+        {% for name, typ in result.output_params %}
+          {
+            value: {{ name|tojson }},
+            paramType: {{ typ|tojson }}
+          }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ];
+
+      function syncAggregation() {
+        const selected = allYOptions.find(function (option) { return option.value === ySelect.value; });
+        const isTimeSeries = selected ? selected.paramType.toLowerCase().endsWith("_ts") : false;
+        aggregationRow.classList.toggle("d-none", !isTimeSeries);
+        if (!isTimeSeries) {
+          aggregationSelect.value = "";
+        }
+      }
+
+      ySelect.addEventListener("change", syncAggregation);
+      syncAggregation();
+    });
+  </script>
+  <script>
+    // Separate block on purpose: the block above returns early when the aggregation
+    // controls are absent, but the submit guard must not depend on them.
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.getElementById("mcf-form");
+      const generateButton = document.getElementById("mcf-generate-plot");
+      if (!form || !generateButton) {
+        return;
+      }
+      // This page holds no plot state, so the render only starts once the GET
+      // navigates to job_plot.html. Guarding here stops a double-click from
+      // submitting the same configuration twice.
+      form.addEventListener("submit", function () {
+        generateButton.disabled = true;
+      });
+      // Back-navigation restores the DOM as it was, disabled button included.
+      window.addEventListener("pageshow", function (event) {
+        if (event.persisted) {
+          generateButton.disabled = false;
+        }
+      });
+    });
+  </script>
+{% endif %}
+{% endblock %}

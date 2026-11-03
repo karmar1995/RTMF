@@ -1,0 +1,7 @@
+dependency-injector==4.48.3
+fastapi==0.136.3
+pandas==2.3.3
+plotly==6.6.0
+pydantic==2.13.4
+python-multipart==0.0.20
+uvicorn==0.48.0

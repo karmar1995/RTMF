@@ -1,0 +1,788 @@
+{% extends "base.html" %}
+{% block title %}{{ visualization_title }}{% endblock %}
+{% block content %}
+<div class="container py-4" data-role="refresh-region">
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">{{ visualization_heading }}</h1>
+      <p class="text-muted mb-0">Job {{ group_id }}</p>
+    </div>
+    <a href="{{ url_for('onSimulationGroupVisualize', job_id=group_id) }}" class="btn btn-outline-secondary">Back to Visualization Modes</a>
+  </div>
+
+  {% if error_message %}
+    <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+  {% endif %}
+
+  {% include "_visualization_results_error.html" %}
+
+  {% if result and result.warning %}
+    <div class="alert alert-warning" role="alert">{{ result.warning }}</div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+    {% set constant_descriptors = result.constants.constants if result.constants else none %}
+    {% set output_namespace = namespace(has_time_series_output=false) %}
+    {% for name, typ in result.output_params %}
+      {% if typ.endswith("_ts") %}
+        {% set output_namespace.has_time_series_output = true %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <div class="mb-4">
+          <h2 class="h5 mb-1">Select Parameters</h2>
+          <p class="text-muted mb-0">{{ "Choose the Y parameter, fixed input values, and ranges. Every value in a selected range produces one line on the plot." if scalar_mode else "Choose the Y parameter, repetition, fixed input values, and ranges. Every value in a selected range produces one line on the plot." }}</p>
+        </div>
+
+        <form method="get" action="{{ url_for('onSimulationJobPlot', job_id=group_id) }}" data-role="multiple-ts-form">
+          <input type="hidden" name="plot" value="1">
+          <input type="hidden" name="mode" value="{{ visualization_mode }}">
+          <input type="hidden" name="x" value="{{ 'repetition' if scalar_mode else 'time' }}">
+          <input type="hidden" name="stat" value="none">
+          <input type="hidden" name="plot_type" value="Line">
+
+          <div class="card border rounded-3">
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-lg-4">
+                  <label for="x_display" class="form-label">X parameter</label>
+                  <select id="x_display" class="form-select" data-role="x-select" disabled>
+                    <option value="{{ 'repetition' if scalar_mode else 'time' }}" selected>{{ 'repetition' if scalar_mode else 'time' }}</option>
+                  </select>
+                </div>
+
+                <div class="col-lg-4">
+                  <label for="y" class="form-label">Y parameter</label>
+                  <select id="y" name="y" class="form-select" data-role="y-select">
+                    {% for name, typ in result.output_params %}
+                      <option
+                        value="{{ name }}"
+                        data-param-type="{{ typ }}"
+                        {% if request.args.get("y") == name %}selected{% endif %}
+                      >{{ name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <hr class="my-4">
+
+              <div>
+                <h4 class="h6 mb-3">Parameters</h4>
+
+                {% if result.constants is none %}
+                  <div class="row g-3">
+                    {% if not scalar_mode %}
+                    <div class="col-md-6 col-xl-4">
+                      <label for="repetition" class="form-label">Repetition</label>
+                      <div class="input-group">
+                        <select id="repetition" name="repetition" class="form-select" data-selected-value="{{ request.args.get('repetition', '') }}">
+                          <option value="">Loading repetitions...</option>
+                        </select>
+                        <div class="input-group-text" data-role="repetition-range-toggle-wrap">
+                          <div class="form-check mb-0">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              id="repetition_range_toggle"
+                              data-role="repetition-range-toggle"
+                              {% if request.args.getlist('range_repetition') %}checked{% endif %}
+                            >
+                            <label class="form-check-label" for="repetition_range_toggle">Range</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mt-2 d-none" data-role="repetition-range-panel">
+                        <div class="row g-2">
+                          <div class="col-4">
+                            <label for="repetition_range_min" class="form-label small">Min</label>
+                            <select
+                              class="form-select form-select-sm"
+                              id="repetition_range_min"
+                              data-role="repetition-range-min"
+                              data-selected-value="{{ (request.args.getlist('range_repetition') | first) or '' }}"
+                            ></select>
+                          </div>
+                          <div class="col-4">
+                            <label for="repetition_range_max" class="form-label small">Max</label>
+                            <select
+                              class="form-select form-select-sm"
+                              id="repetition_range_max"
+                              data-role="repetition-range-max"
+                              data-selected-value="{{ (request.args.getlist('range_repetition') | last) or '' }}"
+                            ></select>
+                          </div>
+                          <div class="col-4">
+                            <label for="repetition_range_step" class="form-label small">Step</label>
+                            <input
+                              type="text"
+                              readonly
+                              class="form-control form-control-sm"
+                              id="repetition_range_step"
+                              data-role="repetition-range-step"
+                            >
+                          </div>
+                        </div>
+                      </div>
+                      <div class="form-text" id="repetition-help">Available repetitions are loaded from the backend.</div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12">
+                      <div
+                        class="alert alert-info mb-0"
+                        role="alert"
+                        data-poll-mode="page-content"
+                        data-state-url="{{ url_for('visualization_status', job_id=group_id) }}"
+                        data-state-status-key="results_status"
+                        data-terminal-statuses="ok,error"
+                        data-refresh-region-selector="[data-role='refresh-region']"
+                      >
+                        Constant parameters are not available yet because analytics or job initialization is still in progress.
+                        <div class="text-muted small mt-2">
+                          <span data-role="poll-status">Still loading, checking again in 5 s.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% elif constant_descriptors %}
+                  <div class="row g-3" data-role="constant-grid">
+                    {% if not scalar_mode %}
+                    <div class="col-md-6 col-xl-4">
+                      <label for="repetition" class="form-label">Repetition</label>
+                      <div class="input-group">
+                        <select id="repetition" name="repetition" class="form-select" data-selected-value="{{ request.args.get('repetition', '') }}">
+                          <option value="">Loading repetitions...</option>
+                        </select>
+                        <div class="input-group-text" data-role="repetition-range-toggle-wrap">
+                          <div class="form-check mb-0">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              id="repetition_range_toggle"
+                              data-role="repetition-range-toggle"
+                              {% if request.args.getlist('range_repetition') %}checked{% endif %}
+                            >
+                            <label class="form-check-label" for="repetition_range_toggle">Range</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mt-2 d-none" data-role="repetition-range-panel">
+                        <div class="row g-2">
+                          <div class="col-4">
+                            <label for="repetition_range_min" class="form-label small">Min</label>
+                            <select
+                              class="form-select form-select-sm"
+                              id="repetition_range_min"
+                              data-role="repetition-range-min"
+                              data-selected-value="{{ (request.args.getlist('range_repetition') | first) or '' }}"
+                            ></select>
+                          </div>
+                          <div class="col-4">
+                            <label for="repetition_range_max" class="form-label small">Max</label>
+                            <select
+                              class="form-select form-select-sm"
+                              id="repetition_range_max"
+                              data-role="repetition-range-max"
+                              data-selected-value="{{ (request.args.getlist('range_repetition') | last) or '' }}"
+                            ></select>
+                          </div>
+                          <div class="col-4">
+                            <label for="repetition_range_step" class="form-label small">Step</label>
+                            <input
+                              type="text"
+                              readonly
+                              class="form-control form-control-sm"
+                              id="repetition_range_step"
+                              data-role="repetition-range-step"
+                            >
+                          </div>
+                        </div>
+                      </div>
+                      <div class="form-text" id="repetition-help">Available repetitions are loaded from the backend.</div>
+                    </div>
+                    {% endif %}
+                    {% for param in constant_descriptors %}
+                      {% set param_name = param.name %}
+                      {% set selected_value = request.args.get("constant_" ~ param_name) %}
+                      {% set ranged_values = request.args.getlist("range_" ~ param_name) %}
+                      {% set range_active = ranged_values | length > 0 %}
+                      <div
+                        class="col-lg-6"
+                        data-constant-row
+                        data-constant-name="{{ param_name }}"
+                      >
+                        <label for="constant_{{ loop.index0 }}" class="form-label">{{ param_name }}</label>
+                        <div class="input-group">
+                          <select
+                            id="constant_{{ loop.index0 }}"
+                            name="constant_{{ param_name }}"
+                            class="form-select"
+                            data-role="constant-select"
+                            data-constant-param="{{ param_name }}"
+                          >
+                            {% for value in param.value or [] %}
+                              {% set option_value = value|string %}
+                              <option value="{{ option_value }}" {% if selected_value == option_value %}selected{% endif %}>
+                                {{ option_value }}
+                              </option>
+                            {% endfor %}
+                          </select>
+                          {% if (param.value or []) | length > 1 %}
+                            <div class="input-group-text">
+                              <div class="form-check mb-0">
+                                <input
+                                  class="form-check-input"
+                                  type="checkbox"
+                                  id="range_{{ loop.index0 }}"
+                                  data-role="range-toggle"
+                                  {% if range_active %}checked{% endif %}
+                                >
+                                <label class="form-check-label" for="range_{{ loop.index0 }}">Range</label>
+                              </div>
+                            </div>
+                          {% endif %}
+                        </div>
+
+                        <div class="mt-2 d-none" data-role="range-panel">
+                          <div class="row g-2">
+                            <div class="col-4">
+                              <label for="range_min_{{ loop.index0 }}" class="form-label small">Min</label>
+                              <select
+                                class="form-select form-select-sm"
+                                id="range_min_{{ loop.index0 }}"
+                                data-role="range-min"
+                              >
+                                {% for value in param.value or [] %}
+                                  {% set option_value = value|string %}
+                                  <option value="{{ option_value }}" {% if range_active and (ranged_values | first) == option_value %}selected{% endif %}>
+                                    {{ option_value }}
+                                  </option>
+                                {% endfor %}
+                              </select>
+                            </div>
+                            <div class="col-4">
+                              <label for="range_max_{{ loop.index0 }}" class="form-label small">Max</label>
+                              <select
+                                class="form-select form-select-sm"
+                                id="range_max_{{ loop.index0 }}"
+                                data-role="range-max"
+                              >
+                                {% for value in param.value or [] %}
+                                  {% set option_value = value|string %}
+                                  <option value="{{ option_value }}" {% if range_active and (ranged_values | last) == option_value %}selected{% endif %}>
+                                    {{ option_value }}
+                                  </option>
+                                {% endfor %}
+                              </select>
+                            </div>
+                            <div class="col-4">
+                              <label for="range_step_{{ loop.index0 }}" class="form-label small">Step</label>
+                              <input
+                                type="text"
+                                readonly
+                                class="form-control form-control-sm"
+                                id="range_step_{{ loop.index0 }}"
+                                data-role="range-step"
+                              >
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                    <p class="text-muted mb-0 mt-3" data-role="constant-empty-message">
+                      No constant parameters available.
+                    </p>
+                  </div>
+                {% else %}
+                  <div class="row g-3">
+                    {% if not scalar_mode %}
+                    <div class="col-md-6 col-xl-4">
+                      <label for="repetition" class="form-label">Repetition</label>
+                      <div class="input-group">
+                        <select id="repetition" name="repetition" class="form-select" data-selected-value="{{ request.args.get('repetition', '') }}">
+                          <option value="">Loading repetitions...</option>
+                        </select>
+                        <div class="input-group-text" data-role="repetition-range-toggle-wrap">
+                          <div class="form-check mb-0">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              id="repetition_range_toggle"
+                              data-role="repetition-range-toggle"
+                              {% if request.args.getlist('range_repetition') %}checked{% endif %}
+                            >
+                            <label class="form-check-label" for="repetition_range_toggle">Range</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mt-2 d-none" data-role="repetition-range-panel">
+                        <div class="row g-2">
+                          <div class="col-4">
+                            <label for="repetition_range_min" class="form-label small">Min</label>
+                            <select
+                              class="form-select form-select-sm"
+                              id="repetition_range_min"
+                              data-role="repetition-range-min"
+                              data-selected-value="{{ (request.args.getlist('range_repetition') | first) or '' }}"
+                            ></select>
+                          </div>
+                          <div class="col-4">
+                            <label for="repetition_range_max" class="form-label small">Max</label>
+                            <select
+                              class="form-select form-select-sm"
+                              id="repetition_range_max"
+                              data-role="repetition-range-max"
+                              data-selected-value="{{ (request.args.getlist('range_repetition') | last) or '' }}"
+                            ></select>
+                          </div>
+                          <div class="col-4">
+                            <label for="repetition_range_step" class="form-label small">Step</label>
+                            <input
+                              type="text"
+                              readonly
+                              class="form-control form-control-sm"
+                              id="repetition_range_step"
+                              data-role="repetition-range-step"
+                            >
+                          </div>
+                        </div>
+                      </div>
+                      <div class="form-text" id="repetition-help">Available repetitions are loaded from the backend.</div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12">
+                      <p class="text-muted mb-0">No constant parameters available.</p>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card border rounded-3 mt-4">
+            <div class="card-body p-4">
+              <div class="row g-3 align-items-end">
+                <div class="col-lg-6">
+                  <label class="form-label">Plot type</label>
+                  <input type="text" class="form-control" value="Line" disabled>
+                  <div class="form-text">{{ "Multiple Scalar visualizations are rendered as line plots." if scalar_mode else "Multiple Time Series visualizations are rendered as line plots." }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-end">
+            <div class="d-flex flex-column align-items-end">
+              <button type="submit" class="btn btn-primary" {% if result.constants is none %}disabled{% endif %}>{{ visualization_submit_label }}</button>
+              {% if result.constants is none %}
+                <div class="form-text text-end">Continue is unavailable until constant parameters are loaded.</div>
+              {% endif %}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <p class="text-muted mb-0">Visualization options are still loading or currently unavailable.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.querySelector("[data-role='multiple-ts-form']");
+      const ySelect = document.querySelector("[data-role='y-select']");
+      const repetitionSelect = document.getElementById("repetition");
+      const repetitionHelp = document.getElementById("repetition-help");
+      const repetitionRangeToggle = document.querySelector("[data-role='repetition-range-toggle']");
+      const repetitionRangeToggleWrap = document.querySelector("[data-role='repetition-range-toggle-wrap']");
+      const repetitionRangePanel = document.querySelector("[data-role='repetition-range-panel']");
+      const repetitionRangeMin = document.querySelector("[data-role='repetition-range-min']");
+      const repetitionRangeMax = document.querySelector("[data-role='repetition-range-max']");
+      const repetitionRangeStep = document.querySelector("[data-role='repetition-range-step']");
+      const constantRows = Array.from(document.querySelectorAll("[data-constant-row]"));
+      const constantEmptyMessage = document.querySelector("[data-role='constant-empty-message']");
+
+      const allYOptions = [
+        {% for name, typ in result.output_params %}
+          {
+            value: {{ name|tojson }},
+            label: {{ name|tojson }},
+            paramType: {{ typ|tojson }}
+          }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ];
+
+      const keepTimeSeries = {{ "false" if scalar_mode else "true" }};
+
+      function observedValues(row) {
+        const minSelect = row.querySelector("[data-role='range-min']");
+        if (!minSelect) {
+          return [];
+        }
+        return Array.from(minSelect.options).map(function (option) {
+          return option.value;
+        });
+      }
+
+      function rangedValues(row) {
+        const observed = observedValues(row);
+        const minSelect = row.querySelector("[data-role='range-min']");
+        const maxSelect = row.querySelector("[data-role='range-max']");
+        if (!minSelect || !maxSelect) {
+          return [];
+        }
+        const min = minSelect.value;
+        const max = maxSelect.value;
+        if (!min || !max) {
+          return [];
+        }
+        return observed.slice(
+          observed.indexOf(min),
+          observed.indexOf(max) + 1
+        );
+      }
+
+      function computeStep(range) {
+        if (range.length < 2) {
+          return "";
+        }
+        const numeric = range.every(function (value) {
+          return value !== "" && !Number.isNaN(Number(value));
+        });
+        if (!numeric) {
+          return "";
+        }
+        const min = Number(range[0]);
+        const max = Number(range[range.length - 1]);
+        return Math.round(((max - min) / (range.length - 1)) * 1e9) / 1e9;
+      }
+
+      function updateStep(row) {
+        const stepInput = row.querySelector("[data-role='range-step']");
+        if (!stepInput) {
+          return;
+        }
+        const step = computeStep(rangedValues(row));
+        stepInput.value = step === "" ? "" : String(step);
+      }
+
+      function generateRangeValues(row) {
+        return rangedValues(row);
+      }
+
+      function addHiddenRangeInput(row, value) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "range_" + row.dataset.constantName;
+        input.value = value;
+        row.appendChild(input);
+      }
+
+      function updateRangePanel(row) {
+        const toggle = row.querySelector("[data-role='range-toggle']");
+        const panel = row.querySelector("[data-role='range-panel']");
+        const select = row.querySelector("[data-role='constant-select']");
+        const minSelect = row.querySelector("[data-role='range-min']");
+        const maxSelect = row.querySelector("[data-role='range-max']");
+
+        if (!toggle || !panel) {
+          return;
+        }
+
+        const active = toggle.checked;
+        panel.classList.toggle("d-none", !active);
+        if (select) {
+          select.disabled = active;
+        }
+
+        if (active && minSelect && maxSelect) {
+          const observed = observedValues(row);
+          if (!minSelect.value && observed.length) {
+            minSelect.value = observed[0];
+          }
+          if (!maxSelect.value && observed.length) {
+            maxSelect.value = observed[observed.length - 1];
+          }
+          updateStep(row);
+        }
+      }
+
+      function repetitionObservedValues() {
+        if (!repetitionRangeMin) {
+          return [];
+        }
+        return Array.from(repetitionRangeMin.options).map(function (option) {
+          return option.value;
+        });
+      }
+
+      function repetitionRangedValues() {
+        const observed = repetitionObservedValues();
+        if (!repetitionRangeMin || !repetitionRangeMax) {
+          return [];
+        }
+        const min = repetitionRangeMin.value;
+        const max = repetitionRangeMax.value;
+        if (!min || !max) {
+          return [];
+        }
+        return observed.slice(
+          observed.indexOf(min),
+          observed.indexOf(max) + 1
+        );
+      }
+
+      function updateRepetitionStep() {
+        if (!repetitionRangeStep) {
+          return;
+        }
+        const step = computeStep(repetitionRangedValues());
+        repetitionRangeStep.value = step === "" ? "" : String(step);
+      }
+
+      function updateRepetitionRangePanel() {
+        if (!repetitionRangeToggle || !repetitionRangePanel) {
+          return;
+        }
+        const active = repetitionRangeToggle.checked;
+        repetitionRangePanel.classList.toggle("d-none", !active);
+        if (repetitionSelect) {
+          repetitionSelect.disabled = active;
+        }
+        if (active && repetitionRangeMin && repetitionRangeMax) {
+          const observed = repetitionObservedValues();
+          if (!repetitionRangeMin.value && observed.length) {
+            repetitionRangeMin.value = observed[0];
+          }
+          if (!repetitionRangeMax.value && observed.length) {
+            repetitionRangeMax.value = observed[observed.length - 1];
+          }
+          updateRepetitionStep();
+        }
+      }
+
+      function fillSelectWithRepetitionOptions(select) {
+        if (!select) {
+          return;
+        }
+        const requestedValue = select.dataset.selectedValue || "";
+        select.innerHTML = "";
+        repetitionOptions.forEach(function (repetition, index) {
+          const option = document.createElement("option");
+          const optionValue = String(repetition);
+          option.value = optionValue;
+          option.textContent = optionValue;
+          if (optionValue === requestedValue || (!requestedValue && index === 0)) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        });
+      }
+
+      function applyRepetitionRangeState() {
+        if (repetitionRangeToggleWrap) {
+          repetitionRangeToggleWrap.classList.toggle("d-none", repetitionOptions.length <= 1);
+        }
+        if (repetitionRangeToggle) {
+          repetitionRangeToggle.disabled = repetitionOptions.length === 0;
+          if (repetitionOptions.length <= 1) {
+            repetitionRangeToggle.checked = false;
+          }
+        }
+        fillSelectWithRepetitionOptions(repetitionRangeMin);
+        fillSelectWithRepetitionOptions(repetitionRangeMax);
+        updateRepetitionRangePanel();
+      }
+
+      function updateYOptions() {
+        if (!ySelect) {
+          return;
+        }
+
+        const requestedValue = ySelect.value || ySelect.dataset.selectedValue || "";
+        const availableYOptions = allYOptions.filter(function (option) {
+          return option.paramType.endsWith("_ts") === keepTimeSeries;
+        });
+
+        ySelect.innerHTML = "";
+
+        availableYOptions.forEach(function (optionData, index) {
+          const option = document.createElement("option");
+          option.value = optionData.value;
+          option.textContent = optionData.label;
+          option.dataset.paramType = optionData.paramType;
+          if (optionData.value === requestedValue || (!requestedValue && index === 0)) {
+            option.selected = true;
+          }
+          ySelect.appendChild(option);
+        });
+
+        if (!availableYOptions.some(function (option) { return option.value === requestedValue; }) && ySelect.options.length > 0) {
+          ySelect.selectedIndex = 0;
+        }
+
+        ySelect.dataset.selectedValue = ySelect.value || "";
+      }
+
+      let repetitionOptions = [];
+      function loadRepetitions() {
+        if (!repetitionSelect) {
+          return;
+        }
+
+        fetch({{ url_for('visualization_repetitions', job_id=group_id)|tojson }})
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("Failed to load repetitions.");
+            }
+            return response.json();
+          })
+          .then(function (payload) {
+            repetitionOptions = Array.isArray(payload.repetitions) ? payload.repetitions : [];
+            const requestedValue = repetitionSelect.dataset.selectedValue || "";
+
+            repetitionSelect.innerHTML = "";
+
+            repetitionOptions.forEach(function (repetition, index) {
+              const option = document.createElement("option");
+              const optionValue = String(repetition);
+              option.value = optionValue;
+              option.textContent = optionValue;
+              if (optionValue === requestedValue || (!requestedValue && index === 0)) {
+                option.selected = true;
+              }
+              repetitionSelect.appendChild(option);
+            });
+
+            if (!repetitionOptions.length) {
+              const option = document.createElement("option");
+              option.value = "";
+              option.textContent = "No repetitions available";
+              repetitionSelect.appendChild(option);
+              repetitionSelect.disabled = true;
+            }
+
+            if (repetitionHelp) {
+              repetitionHelp.textContent = repetitionOptions.length
+                ? "Available repetitions are loaded from the backend."
+                : "No repetitions are currently available.";
+            }
+
+            applyRepetitionRangeState();
+          })
+          .catch(function () {
+            repetitionSelect.innerHTML = "";
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "Unable to load repetitions";
+            repetitionSelect.appendChild(option);
+            repetitionSelect.disabled = true;
+            if (repetitionRangeToggle) {
+              repetitionRangeToggle.checked = false;
+              repetitionRangeToggle.disabled = true;
+            }
+            if (repetitionRangePanel) {
+              repetitionRangePanel.classList.add("d-none");
+            }
+            if (repetitionHelp) {
+              repetitionHelp.textContent = "Unable to load repetition values from the backend.";
+            }
+          });
+      }
+
+      constantRows.forEach(function (row) {
+        const toggle = row.querySelector("[data-role='range-toggle']");
+        if (toggle) {
+          toggle.addEventListener("change", function () {
+            updateRangePanel(row);
+          });
+        }
+        const minSelect = row.querySelector("[data-role='range-min']");
+        const maxSelect = row.querySelector("[data-role='range-max']");
+        if (minSelect) {
+          minSelect.addEventListener("change", function () {
+            updateStep(row);
+          });
+        }
+        if (maxSelect) {
+          maxSelect.addEventListener("change", function () {
+            updateStep(row);
+          });
+        }
+        updateRangePanel(row);
+      });
+
+      if (repetitionRangeToggle) {
+        repetitionRangeToggle.addEventListener("change", function () {
+          updateRepetitionRangePanel();
+        });
+      }
+      if (repetitionRangeMin) {
+        repetitionRangeMin.addEventListener("change", updateRepetitionStep);
+      }
+      if (repetitionRangeMax) {
+        repetitionRangeMax.addEventListener("change", updateRepetitionStep);
+      }
+
+      if (form) {
+        form.addEventListener("submit", function (event) {
+          form.querySelectorAll("input[name^='range_']").forEach(function (input) {
+            input.remove();
+          });
+
+          constantRows.forEach(function (row) {
+            const toggle = row.querySelector("[data-role='range-toggle']");
+            if (!toggle || !toggle.checked) {
+              return;
+            }
+
+            generateRangeValues(row).forEach(function (value) {
+              addHiddenRangeInput(row, value);
+            });
+          });
+
+          if (repetitionRangeToggle && repetitionRangeToggle.checked) {
+            repetitionRangedValues().forEach(function (value) {
+              const input = document.createElement("input");
+              input.type = "hidden";
+              input.name = "range_repetition";
+              input.value = value;
+              repetitionRangePanel.parentElement.appendChild(input);
+            });
+          }
+
+          const hasRange = constantRows.some(function (row) {
+            const toggle = row.querySelector("[data-role='range-toggle']");
+            return toggle && toggle.checked;
+          }) || (repetitionRangeToggle && repetitionRangeToggle.checked);
+
+          if (constantRows.length > 0 && !hasRange) {
+            event.preventDefault();
+            if (constantEmptyMessage) {
+              constantEmptyMessage.textContent = {% if scalar_mode %}"Enable the range field for at least one parameter."{% else %}"Enable the range field for at least one parameter or repetition."{% endif %};
+              constantEmptyMessage.classList.remove("d-none");
+            }
+            return;
+          }
+
+          if (constantEmptyMessage) {
+            constantEmptyMessage.textContent = "No constant parameters available.";
+          }
+        });
+      }
+
+      updateYOptions();
+      loadRepetitions();
+    });
+  </script>
+{% endif %}
+
+  <script src="{{ url_for('static', filename='js/visualization_polling.js') }}"></script>
+</div>
+{% endblock %}

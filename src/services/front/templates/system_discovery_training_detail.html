@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}System Discovery Training{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% if training %}
+  {% if training.badge_class in ['secondary', 'warning'] %}
+    <meta http-equiv="refresh" content="5">
+  {% endif %}
+
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="mb-1">System Discovery Training</h1>
+      <p class="text-muted mb-0"><code>{{ training.training_id }}</code></p>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Status</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">State</dt>
+        <dd class="col-sm-9"><span class="badge bg-{{ training.badge_class }}">{{ training.state_label }}</span></dd>
+
+        <dt class="col-sm-3">Training status</dt>
+        <dd class="col-sm-9">{{ training.training_status or '-' }}</dd>
+
+        <dt class="col-sm-3">Evaluation status</dt>
+        <dd class="col-sm-9">{{ training.evaluation_status or '-' }}</dd>
+
+        <dt class="col-sm-3">Error</dt>
+        <dd class="col-sm-9">{{ training.error or '-' }}</dd>
+
+        <dt class="col-sm-3">Created</dt>
+        <dd class="col-sm-9"><span data-utc-datetime="{{ training.created_at }}">{{ training.created_at }}</span></dd>
+
+        <dt class="col-sm-3">Last updated</dt>
+        <dd class="col-sm-9"><span data-utc-datetime="{{ training.updated_at }}">{{ training.updated_at }}</span></dd>
+      </dl>
+    </div>
+  </div>
+
+  {% if training.badge_class in ['secondary', 'warning'] %}
+    <div class="alert alert-info" role="alert">Training is in progress. This page will refresh automatically.</div>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">Submitted Parameters</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">model</dt>
+        <dd class="col-sm-9">{{ training.model }}</dd>
+
+        <dt class="col-sm-3">basis</dt>
+        <dd class="col-sm-9">{{ training.basis }}</dd>
+
+        <dt class="col-sm-3">degree</dt>
+        <dd class="col-sm-9">{{ training.degree }}</dd>
+
+        <dt class="col-sm-3">nlags-x</dt>
+        <dd class="col-sm-9"><code>{{ training.nlags_x }}</code></dd>
+
+        <dt class="col-sm-3">nlags-y</dt>
+        <dd class="col-sm-9">{{ training.nlags_y }}</dd>
+      </dl>
+    </div>
+  </div>
+{% else %}
+  <h1>System Discovery Training</h1>
+  <p class="text-muted">Training record was not found.</p>
+{% endif %}
+
+<div class="d-flex flex-wrap gap-2">
+  <a href="{{ url_for('onSystemDiscoveryTrainingQueue') }}" class="btn btn-outline-primary">Back to Training queue</a>
+  {% if training and training.can_evaluate %}
+    <a href="{{ training.evaluation_url }}" class="btn btn-primary">Evaluate model</a>
+  {% endif %}
+  {% if training %}
+    <form method="post" action="{{ training.remove_url }}" class="d-inline" onsubmit="return confirm('Remove this local training queue entry and its temporary local artifacts only? External System Discovery processing may continue.');">
+      <button type="submit" class="btn btn-outline-danger">Remove</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

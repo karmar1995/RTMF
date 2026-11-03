@@ -1,0 +1,25 @@
+<!-- Sidebar (included in base.html) -->
+<div class="col-3 col-md-2 bg-dark sticky-top vh-100 d-flex flex-column p-3 overflow-y-auto">
+  <h4 class="text-white mb-4">Menu</h4>
+
+  {% for group in sidebar_groups %}
+    {% if group.label %}
+      <div class="d-flex align-items-center text-white mb-3 mt-2">
+        <span class="me-2 fw-bold text-uppercase small">{{ group.label }}</span>
+        <div class="flex-grow-1 border-top border-secondary"></div>
+      </div>
+    {% endif %}
+
+    {% for item in group.items %}
+      <a href="{{ url_for(item.endpoint) }}"
+         class="btn btn-outline-light mb-2 w-100 {% if active_page == item.key %}active{% endif %}">
+         {{ item.label }}
+      </a>
+    {% endfor %}
+  {% endfor %}
+
+  <form class="mt-auto pt-3" method="post" action="{{ url_for('onAuthLogout') }}">
+    <button type="submit" class="btn btn-outline-light w-100">Logout</button>
+  </form>
+
+</div>

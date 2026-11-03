@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}System Discovery Saved Model{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% if model and result %}
+  <div class="d-flex flex-column flex-md-row align-items-md-start justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">System Discovery Saved Model</h1>
+      <p class="text-muted mb-0"><code>{{ model.model_id }}</code></p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('onSystemDiscoverySavedModels') }}" class="btn btn-outline-secondary">Back to saved models</a>
+      <form method="post" action="{{ model.remove_url }}" class="d-inline" onsubmit="return confirm('Remove this saved model? The registered simulator and historical simulation records are kept.');">
+        <button type="submit" class="btn btn-outline-danger">Remove model</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Model Details</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">Model name</dt>
+        <dd class="col-sm-9">{{ model.model_name }}</dd>
+
+        <dt class="col-sm-3">Saved</dt>
+        <dd class="col-sm-9"><span data-utc-datetime="{{ model.saved_at }}">{{ model.saved_at }}</span></dd>
+
+        <dt class="col-sm-3">Source training ID</dt>
+        <dd class="col-sm-9"><code>{{ model.source_training_id }}</code></dd>
+
+        <dt class="col-sm-3">basis</dt>
+        <dd class="col-sm-9">{{ model.basis }}</dd>
+
+        <dt class="col-sm-3">degree</dt>
+        <dd class="col-sm-9">{{ model.degree }}</dd>
+
+        <dt class="col-sm-3">nlags-x</dt>
+        <dd class="col-sm-9"><code>{{ model.nlags_x }}</code></dd>
+
+        <dt class="col-sm-3">nlags-y</dt>
+        <dd class="col-sm-9">{{ model.nlags_y }}</dd>
+      </dl>
+    </div>
+  </div>
+{% else %}
+  <h1>System Discovery Saved Model</h1>
+  <p class="text-muted">Saved model was not found.</p>
+  <a href="{{ url_for('onSystemDiscoverySavedModels') }}" class="btn btn-outline-primary">Back to saved models</a>
+{% endif %}
+{% endblock %}

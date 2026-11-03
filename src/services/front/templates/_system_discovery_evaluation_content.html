@@ -1,0 +1,79 @@
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">{{ result.results_plot.title }}</div>
+      <div class="card-body p-0">
+        {% set plot = result.results_plot %}
+        {% include "_system_discovery_plot.html" %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">{{ result.cdf_plot.title }}</div>
+      <div class="card-body p-0">
+        {% set plot = result.cdf_plot %}
+        {% include "_system_discovery_plot.html" %}
+      </div>
+    </div>
+  </div>
+  {% if result.scatter_plot %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">{{ result.scatter_plot.title }}</div>
+      <div class="card-body p-0">
+        {% set plot = result.scatter_plot %}
+        {% include "_system_discovery_plot.html" %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if result.metadata %}
+  {% set metadata = result.metadata %}
+  {% if metadata.analysis %}
+    <div class="alert alert-light border" role="status">{{ metadata.analysis }}</div>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">Evaluation Metrics</div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            <tr><th scope="row">Sample size</th><td>{{ metadata.sample_size }}</td></tr>
+            <tr><th scope="row">NSE</th><td>{{ metadata.nse.value }}</td></tr>
+            <tr><th scope="row">NSE confidence interval</th><td>{{ metadata.nse.confidence_interval or "-" }}</td></tr>
+            <tr><th scope="row">NSE confidence level and method</th><td>{{ metadata.nse.confidence_level or "-" }} {{ metadata.nse.confidence_method or "" }}</td></tr>
+            <tr><th scope="row">RMSE</th><td>{{ metadata.rmse.value }}</td></tr>
+            <tr><th scope="row">RMSE confidence interval</th><td>{{ metadata.rmse.confidence_interval or "-" }}</td></tr>
+            <tr><th scope="row">RMSE confidence level and method</th><td>{{ metadata.rmse.confidence_level or "-" }} {{ metadata.rmse.confidence_method or "" }}</td></tr>
+            <tr><th scope="row">NRMSE</th><td>{{ metadata.nrmse.value }}</td></tr>
+            <tr><th scope="row">PBIAS</th><td>{{ metadata.pbias.value }}</td></tr>
+            <tr><th scope="row">PBIAS interpretation</th><td>{{ metadata.pbias.note or "-" }}</td></tr>
+            <tr><th scope="row">p-value</th><td>{{ metadata.p_value }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">NSE Category Probabilities</div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            {% for category in metadata.categories %}
+              <tr>
+                <th scope="row">{{ category.label }}</th>
+                <td>{{ category.probability }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endif %}

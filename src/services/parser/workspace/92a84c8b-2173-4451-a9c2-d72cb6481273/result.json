@@ -1,0 +1,32 @@
+{
+    "phases": [
+        [
+            0,
+            60,
+            "Normal"
+        ],
+        [
+            61,
+            142,
+            "Shock"
+        ],
+        [
+            143,
+            150,
+            "Recovery"
+        ],
+        [
+            151,
+            183,
+            "Normal"
+        ]
+    ],
+    "metrics": {
+        "recovery_time_in_steps": 8,
+        "shock_time_in_steps": 82,
+        "shock_drop_pct_ref_normal": 30.369273362195116,
+        "shock_drop_pct_ref_baseline": null,
+        "shock_stage_avg": 0.6963072663780489,
+        "shock_stage_std": 0.08484308053891904
+    }
+}

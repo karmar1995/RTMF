@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+{% block title %}Evaluation Queue{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="mb-1">Evaluation Queue</h1>
+    <p class="text-muted mb-0">Reloading this page updates evaluation statuses.</p>
+  </div>
+</div>
+
+{% if evaluations %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Evaluation ID</th>
+          <th scope="col">Status</th>
+          <th scope="col">Simulator</th>
+          <th scope="col">Created</th>
+          <th scope="col" class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in evaluations %}
+          <tr>
+            <td><a href="{{ item.detail_url }}">{{ item.evaluation_id }}</a></td>
+            <td><span class="badge text-bg-{{ item.badge_class }}">{{ item.status_label }}</span></td>
+            <td>{{ item.simulator_id }}</td>
+            <td><span data-utc-datetime="{{ item.created_at }}">{{ item.created_at }}</span></td>
+            <td class="text-end">
+              <a href="{{ item.detail_url }}" class="btn btn-sm btn-outline-primary">Details</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ render_pagination(total, total_pages, page, per_page, page_items, 'onEvaluationQueue', 'evaluations', aria_label='Evaluation queue pages') }}
+{% else %}
+  <p class="text-muted text-center">No evaluations have been run yet.</p>
+{% endif %}
+{% endblock %}

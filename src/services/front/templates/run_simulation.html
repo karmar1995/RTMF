@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Run Simulation{% endblock %}
+
+{% block content %}
+<h1>Run Simulation</h1>
+<p>Select a model, then specify parameter ranges or lists, and start the simulation.</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<form method="post"
+      action="{{ url_for('onRunSimulationSubmit') }}"
+      id="runForm"
+      enctype="multipart/form-data">  {# changed: allow file upload #}
+
+  <!-- Model dropdown -->
+  <div class="mb-3">
+    <label for="modelSelect" class="form-label">Model</label>
+    <select class="form-select" id="modelSelect" name="model" required
+            {% if not models %}disabled{% endif %}>
+      {% if models %}
+        {% for m in models %}
+          <option value="{{ m.id }}" data-model-id="{{ m.id }}">{{ m.display }}</option>
+        {% endfor %}
+      {% endif %}
+    </select>
+  </div>
+
+  <!-- Parameter setup strategy -->
+  <div class="mb-3">
+    <label for="strategySelect" class="form-label">Parameter setup strategy</label>
+    <select class="form-select" id="strategySelect" name="param_strategy">
+      <option value="all_linear_combinations" selected>All Linear Combinations</option>
+      <option value="other">Other (coming soon)</option>
+    </select>
+    <div id="strategyNote" class="form-text"></div>
+  </div>
+
+  <!-- Parameters section (filled dynamically) -->
+  <div id="paramsSection" class="mt-4 d-none">
+    <h5 class="mb-3">Parameters</h5>
+    <div class="small text-muted mb-3">
+      <strong>Numeric (int/float):</strong> min, max, step (use min = max for fixed) &nbsp;|&nbsp;
+      <strong>Text/Boolean (str/bool):</strong> list of values (comma-separated)
+    </div>
+    <div id="paramsGrid" class="vstack gap-3"></div>
+  </div>
+
+  <!-- NEW: small parameters file picker -->
+  <div id="paramFileSection" class="mt-4 d-none">
+    <h5 class="mb-3">Parameters file</h5>
+    <div class="row g-3 align-items-center">
+      <div class="col-md-6">
+        <input type="file"
+               class="form-control"
+               id="paramsFile"
+               name="params_file"
+               accept=".txt"
+               aria-describedby="paramsFileHelp">
+      </div>
+      <div class="col-md-6 small text-muted" id="paramsFileHelp">
+        Supported: TXT. Max 10&nbsp;MB.
+      </div>
+    </div>
+    <div id="fileInfo" class="form-text mt-2 d-none"></div>
+  </div>
+
+  <!-- Repetitions spinbox -->
+  <div class="mt-4 col-md-3">
+    <label for="repetitions" class="form-label">Repetitions</label>
+    <input type="number" class="form-control" id="repetitions" name="repetitions"
+           value="1" min="1" step="1" required>
+  </div>
+
+  <div class="mt-4">
+    <button type="submit" class="btn btn-primary" id="startBtn" {% if not models %}disabled{% endif %}>
+      Start Simulation
+    </button>
+  </div>
+</form>
+
+{% if error_message %}
+  <div class="alert alert-danger mt-3" role="alert">{{ error_message }}</div>
+{% endif %}
+
+<script>
+  const modelSelect     = document.getElementById('modelSelect');
+  const strategySelect  = document.getElementById('strategySelect');
+  const strategyNote    = document.getElementById('strategyNote');
+  const paramsSection   = document.getElementById('paramsSection');
+  const paramsGrid      = document.getElementById('paramsGrid');
+  const paramFileSection= document.getElementById('paramFileSection');   // NEW
+  const paramsFileInput = document.getElementById('paramsFile');         // NEW
+  const fileInfo        = document.getElementById('fileInfo');           // NEW
+  const startBtn        = document.getElementById('startBtn');
+
+  // Helpers for strategy
+  function usesLinearCombinations() {
+    return strategySelect?.value === 'all_linear_combinations';
+  }
+  function usesParameterFile() {
+    return strategySelect?.value === 'parameter_file';
+  }
+  function getSelectedModelId() {
+    const option = modelSelect?.selectedOptions?.[0];
+    return option?.dataset?.modelId || modelSelect?.value || '';
+  }
+
+  // Build one row for a numeric parameter (int/float)
+  function buildNumericRow(param) {
+    const row = document.createElement('div');
+    row.className = 'row g-2 align-items-end';
+    row.innerHTML = `
+      <div class="col-md-3">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control" value="${param.name}" readonly>
+        <input type="hidden" name="params[${param.name}][type]" value="${param.type}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Min value</label>
+        <input type="number" class="form-control"
+               name="params[${param.name}][min]" step="${param.type === 'int' ? 1 : 'any'}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Max value</label>
+        <input type="number" class="form-control"
+               name="params[${param.name}][max]" step="${param.type === 'int' ? 1 : 'any'}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Step value</label>
+        <input type="number" class="form-control"
+               name="params[${param.name}][step]" step="${param.type === 'int' ? 1 : 'any'}">
+      </div>
+    `;
+    return row;
+  }
+
+  // Build one row for a discrete parameter (str/bool)
+  function buildDiscreteRow(param) {
+    const row = document.createElement('div');
+    row.className = 'row g-2 align-items-end';
+    const hint = param.type === 'bool' ? 'true,false' : 'red,green,blue';
+    row.innerHTML = `
+      <div class="col-md-4">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control" value="${param.name}" readonly>
+        <input type="hidden" name="params[${param.name}][type]" value="${param.type}">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">List of values (comma-separated)</label>
+        <input type="text" class="form-control"
+               name="params[${param.name}][list]" placeholder="${hint}">
+      </div>
+    `;
+    return row;
+  }
+
+  // Populate grid from fetched JSON (only when strategy is All Linear Combinations)
+  function populateGrid(params) {
+    paramsGrid.innerHTML = '';
+    if (!usesLinearCombinations()) {
+      paramsSection.classList.add('d-none');
+      return;
+    }
+    strategyNote.textContent = ''; // clear any note
+    if (!params || !params.length) {
+      paramsSection.classList.add('d-none');
+      return;
+    }
+    params.forEach(p => {
+      const t = (p.type || '').toLowerCase();
+      if (t === 'int' || t === 'float') {
+        paramsGrid.appendChild(buildNumericRow(p));
+      } else if (t === 'str' || t === 'bool') {
+        paramsGrid.appendChild(buildDiscreteRow(p));
+      } else {
+        paramsGrid.appendChild(buildDiscreteRow({ ...p, type: 'str' }));
+      }
+    });
+    paramsSection.classList.remove('d-none');
+  }
+
+  // Update UI for current strategy
+  function updateStrategyUI() {
+    if (usesLinearCombinations()) {
+      // Show grid, hide file picker
+      paramFileSection.classList.add('d-none');
+      paramsFileInput.required = false;
+      paramsFileInput.value = '';
+      fileInfo.classList.add('d-none');
+      strategyNote.textContent = '';
+      loadParamsForSelected();
+    } else if (usesParameterFile()) {
+      // Show file picker, hide grid
+      paramsSection.classList.add('d-none');
+      paramsGrid.innerHTML = '';
+      paramsFileInput.required = true;      // ensure HTML5 validation
+      paramFileSection.classList.remove('d-none');
+      strategyNote.textContent = 'Upload a parameters file; manual grid is ignored.';
+    } else {
+      // Other strategies (coming soon)
+      paramsSection.classList.add('d-none');
+      paramsGrid.innerHTML = '';
+      paramFileSection.classList.add('d-none');
+      paramsFileInput.required = false;
+      strategyNote.textContent = 'This strategy will ignore the manual parameter grid (UI coming soon).';
+    }
+  }
+
+  async function loadParamsForSelected() {
+    const modelId = getSelectedModelId();
+
+    // If not using the grid, don't fetch anything
+    if (!usesLinearCombinations()) return;
+
+    paramsSection.classList.add('d-none');
+    paramsGrid.innerHTML = '';
+    if (!modelId) return;
+
+    try {
+      const res = await fetch(`/api/models/${encodeURIComponent(modelId)}/input-params`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json(); // { params: [...] }
+      populateGrid(data.params || []);
+    } catch (err) {
+      paramsGrid.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+          Failed to load parameters for model <strong>${modelId}</strong> (${err.message}).
+        </div>`;
+      paramsSection.classList.remove('d-none');
+    }
+  }
+
+  // --- File picker niceties (optional validation/preview) ---
+  const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_EXT = ['txt'];
+  function ext(name){ const i=name.lastIndexOf('.'); return i>=0 ? name.slice(i+1).toLowerCase() : ''; }
+  function humanSize(b){ if(b<1024)return b+' B'; const u=['KB','MB','GB']; let i=-1,s=b; do{s/=1024;i++;}while(s>=1024&&i<u.length-1); return (s>=10? s.toFixed(0):s.toFixed(1))+' '+u[i]; }
+
+  paramsFileInput?.addEventListener('change', () => {
+    const f = paramsFileInput.files && paramsFileInput.files[0];
+    if (!f) { fileInfo.classList.add('d-none'); return; }
+    const e = ext(f.name);
+    if (!ALLOWED_EXT.includes(e)) {
+      alert('Unsupported file type. Allowed: TXT.');
+      paramsFileInput.value = '';
+      fileInfo.classList.add('d-none');
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      alert('File too large. Max 10 MB.');
+      paramsFileInput.value = '';
+      fileInfo.classList.add('d-none');
+      return;
+    }
+    fileInfo.textContent = `${f.name} · ${humanSize(f.size)}${f.type ? ' · '+f.type : ''}`;
+    fileInfo.classList.remove('d-none');
+  });
+
+  // React to changes
+  modelSelect?.addEventListener('change', () => {
+    if (usesLinearCombinations()) loadParamsForSelected();
+  });
+  strategySelect?.addEventListener('change', updateStrategyUI);
+
+  // Initial load (if preselected)
+  updateStrategyUI();
+  if (usesLinearCombinations() && getSelectedModelId()) {
+    loadParamsForSelected();
+  }
+
+</script>
+{% endblock %}

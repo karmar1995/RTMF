@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Run Evaluation{% endblock %}
+
+{% block content %}
+<h1>Run Evaluation</h1>
+<p>Select a model and an output parameter, then define numeric input bounds to optimize the output.</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<form method="post"
+      action="{{ url_for('onEvaluationRunSubmit') }}"
+      id="evaluationForm">
+
+  <!-- Model dropdown -->
+  <div class="mb-3">
+    <label for="modelSelect" class="form-label">Model</label>
+    <select class="form-select" id="modelSelect" name="model" required
+            {% if not models %}disabled{% endif %}>
+      {% if models %}
+        {% for m in models %}
+          <option value="{{ m.id }}" data-model-id="{{ m.id }}">{{ m.display }}</option>
+        {% endfor %}
+      {% endif %}
+    </select>
+  </div>
+
+  <!-- Output parameter dropdown -->
+  <div class="mb-3">
+    <label for="outputSelect" class="form-label">Output parameter</label>
+    <select class="form-select" id="outputSelect" name="output" required disabled>
+      <option value="" selected>Select a model first</option>
+    </select>
+  </div>
+
+  <!-- Aggregation method dropdown (shown only for time-series outputs) -->
+  <div class="mb-3 d-none" id="aggregationSection">
+    <label for="aggregation" class="form-label">Aggregation method</label>
+    <select class="form-select" id="aggregation" name="aggregation">
+      <option value="mean" selected>Mean</option>
+      <option value="min">Minimum</option>
+      <option value="max">Maximum</option>
+      <option value="median">Median</option>
+      <option value="p95">95th percentile</option>
+    </select>
+    <div class="form-text">
+      The output parameter is a time series. Each time series is reduced to a single
+      value using the selected aggregation before sensitivity analysis.
+    </div>
+  </div>
+
+  <!-- Numeric input bounds section (filled dynamically) -->
+  <div id="paramsSection" class="mt-4 d-none">
+    <h5 class="mb-3">Numeric input bounds</h5>
+    <div class="small text-muted mb-3">
+      Only numeric (int/float) parameters are optimized. Fill in min and max for each
+      parameter that should be part of the optimization.
+    </div>
+    <div id="paramsGrid" class="vstack gap-3"></div>
+  </div>
+
+  <!-- SSBO options -->
+  <div class="mt-4 row g-3">
+    <div class="col-md-2">
+      <label for="repetitions" class="form-label">Repetitions</label>
+      <input type="number" class="form-control" id="repetitions" name="repetitions"
+             value="128" min="1" step="1" required>
+    </div>
+    <div class="col-md-2">
+      <label for="kmax" class="form-label">kmax</label>
+      <input type="number" class="form-control" id="kmax" name="kmax"
+             value="30" min="1" step="1" required>
+    </div>
+    <div class="col-md-2">
+      <label for="epsilon" class="form-label">epsilon</label>
+      <input type="number" class="form-control" id="epsilon" name="epsilon"
+             value="0.001" min="0" step="any" required>
+    </div>
+    <div class="col-md-2">
+      <label for="batch_size" class="form-label">Batch size</label>
+      <input type="number" class="form-control" id="batch_size" name="batch_size"
+             value="1" min="1" step="1" required>
+    </div>
+    <div class="col-md-2">
+      <label for="lhs_candidates" class="form-label">LHS candidates</label>
+      <input type="number" class="form-control" id="lhs_candidates" name="lhs_candidates"
+             value="1500" min="1" step="1" required>
+    </div>
+    <div class="col-md-2">
+      <label for="random_state" class="form-label">Random state</label>
+      <input type="number" class="form-control" id="random_state" name="random_state"
+             value="42" step="1" required>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <button type="submit" class="btn btn-primary" id="startBtn" {% if not models %}disabled{% endif %}>
+      Run Evaluation
+    </button>
+  </div>
+</form>
+
+{% if error_message %}
+  <div class="alert alert-danger mt-3" role="alert">{{ error_message }}</div>
+{% endif %}
+
+<script>
+  const modelSelect  = document.getElementById('modelSelect');
+  const outputSelect = document.getElementById('outputSelect');
+  const paramsSection = document.getElementById('paramsSection');
+  const paramsGrid    = document.getElementById('paramsGrid');
+  const aggregationSection = document.getElementById('aggregationSection');
+  const startBtn      = document.getElementById('startBtn');
+
+  const prefill = new URLSearchParams(window.location.search);
+  const prefillModel = prefill.get('model') || '';
+  let prefillOutput = prefill.get('output') || '';
+  let prefillAggregation = prefill.get('aggregation') || '';
+  let prefillBounds = null;
+  try {
+    const rawBounds = prefill.get('bounds');
+    if (rawBounds) prefillBounds = JSON.parse(rawBounds);
+  } catch (err) {
+    prefillBounds = null;
+  }
+
+  function getSelectedModelId() {
+    const option = modelSelect?.selectedOptions?.[0];
+    return option?.dataset?.modelId || modelSelect?.value || '';
+  }
+
+  function buildNumericRow(param) {
+    const row = document.createElement('div');
+    row.className = 'row g-2 align-items-end';
+    row.innerHTML = `
+      <div class="col-md-4">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control" value="${param.name}" readonly>
+        <input type="hidden" name="params[${param.name}][type]" value="${param.type}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Min value</label>
+        <input type="number" class="form-control"
+               name="params[${param.name}][min]" step="any">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Max value</label>
+        <input type="number" class="form-control"
+               name="params[${param.name}][max]" step="any">
+      </div>
+    `;
+    return row;
+  }
+
+  function populateParams(params) {
+    paramsGrid.innerHTML = '';
+    const numeric = (params || []).filter(p => {
+      const t = (p.type || '').toLowerCase();
+      return t === 'int' || t === 'float' || t === 'number';
+    });
+    if (!numeric.length) {
+      paramsSection.classList.add('d-none');
+      return;
+    }
+    numeric.forEach(p => paramsGrid.appendChild(buildNumericRow(p)));
+    paramsSection.classList.remove('d-none');
+  }
+
+  function updateAggregationSection() {
+    const option = outputSelect?.selectedOptions?.[0];
+    const type = (option?.dataset?.type || '').toLowerCase();
+    const isTimeSeries = type.endsWith('_ts') || type.includes('timeseries');
+    aggregationSection.classList.toggle('d-none', !isTimeSeries);
+  }
+
+  function applyPrefill() {
+    if (prefillOutput) {
+      const hasOutput = Array.from(outputSelect.options).some(o => o.value === prefillOutput);
+      if (hasOutput) {
+        outputSelect.value = prefillOutput;
+        updateAggregationSection();
+      }
+    }
+    if (prefillAggregation) {
+      const aggregationSelect = document.getElementById('aggregation');
+      if (aggregationSelect) {
+        aggregationSelect.value = prefillAggregation;
+      }
+    }
+    if (prefillBounds) {
+      const maxInputs = new Map();
+      paramsGrid.querySelectorAll('input[name$="[max]"]').forEach(input => {
+        maxInputs.set(input.name, input);
+      });
+      paramsGrid.querySelectorAll('input[name$="[min]"]').forEach(minInput => {
+        const match = minInput.name.match(/^params\[(.*)\]\[min\]$/);
+        if (!match) return;
+        const range = prefillBounds[match[1]];
+        if (!Array.isArray(range) || range.length < 2) return;
+        minInput.value = range[0];
+        const maxInput = maxInputs.get(`params[${match[1]}][max]`);
+        if (maxInput) maxInput.value = range[1];
+      });
+    }
+    // One-shot: a later manual model change must not re-apply the old prefill.
+    prefillOutput = '';
+    prefillAggregation = '';
+    prefillBounds = null;
+  }
+
+  async function loadParamsForSelected() {
+    const modelId = getSelectedModelId();
+    paramsSection.classList.add('d-none');
+    paramsGrid.innerHTML = '';
+    aggregationSection.classList.add('d-none');
+    outputSelect.innerHTML = '<option value="" selected>Loading outputs...</option>';
+    outputSelect.disabled = true;
+    if (!modelId) return;
+
+    try {
+      const res = await fetch(`/api/models/${encodeURIComponent(modelId)}/evaluation-params`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const outputs = data.output_params || [];
+      if (outputs.length) {
+        outputSelect.innerHTML = outputs.map(o =>
+          `<option value="${o.name}" data-type="${o.type}">${o.name} (${o.type})</option>`
+        ).join('');
+        outputSelect.disabled = false;
+        updateAggregationSection();
+      } else {
+        outputSelect.innerHTML = '<option value="" selected>No output parameters</option>';
+      }
+      populateParams(data.input_params || []);
+      applyPrefill();
+    } catch (err) {
+      outputSelect.innerHTML = `<option value="" selected>Failed to load (${err.message})</option>`;
+      paramsGrid.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+          Failed to load parameters for model <strong>${modelId}</strong> (${err.message}).
+        </div>`;
+      paramsSection.classList.remove('d-none');
+    }
+  }
+
+  modelSelect?.addEventListener('change', loadParamsForSelected);
+  outputSelect?.addEventListener('change', updateAggregationSection);
+
+  if (prefillModel) {
+    const hasModel = Array.from(modelSelect?.options || []).some(o => o.value === prefillModel);
+    if (hasModel) {
+      modelSelect.value = prefillModel;
+    }
+  }
+
+  if (getSelectedModelId()) {
+    loadParamsForSelected();
+  }
+</script>
+{% endblock %}

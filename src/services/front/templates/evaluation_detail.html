@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Evaluation Details{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% if error_message %}
+  <h1>Evaluation Details</h1>
+  <p class="text-muted"><code>{{ evaluation_id }}</code></p>
+  <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+  <a href="{{ url_for('onEvaluationQueue') }}" class="btn btn-outline-primary">Back to Evaluation Queue</a>
+{% else %}
+  {% if is_running or convergence_state == 'pending' or exploration_state == 'pending' %}
+    <meta http-equiv="refresh" content="5">
+  {% endif %}
+
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="mb-1">Evaluation Details</h1>
+      <p class="text-muted mb-0"><code>{{ evaluation_id }}</code></p>
+    </div>
+    <a href="{{ url_for('onEvaluationQueue') }}" class="btn btn-outline-primary">Back to Evaluation Queue</a>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Status</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">Status</dt>
+        <dd class="col-sm-9"><span class="badge text-bg-{{ badge_class }}">{{ status_label }}</span></dd>
+
+        <dt class="col-sm-3">Simulator</dt>
+        <dd class="col-sm-9">{{ simulator_id or '-' }}</dd>
+
+        <dt class="col-sm-3">Created</dt>
+        <dd class="col-sm-9"><span data-utc-datetime="{{ created_at }}">{{ created_at }}</span></dd>
+
+        {% if result and result.details and result.details.error %}
+          <dt class="col-sm-3">Error</dt>
+          <dd class="col-sm-9"><code>{{ result.details.error }}</code></dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  {% if is_running %}
+    <div class="alert alert-info" role="alert">
+      Evaluation is still running. Progress and plots below update automatically.
+    </div>
+  {% elif status == 'failed' %}
+    <div class="alert alert-danger" role="alert">The evaluation failed. See the status card above for details.</div>
+  {% endif %}
+
+  {% if progress %}
+    <div class="card mb-4">
+      <div class="card-header">Progress</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">Stage</dt>
+          <dd class="col-sm-9">{{ progress.stage }}</dd>
+
+          <dt class="col-sm-3">Iterations</dt>
+          <dd class="col-sm-9">
+            {% if progress.kmax %}
+              {{ progress.iteration }} / {{ progress.kmax }}
+            {% else %}
+              {{ progress.iteration }}
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-3">Best value so far</dt>
+          <dd class="col-sm-9">
+            {% if progress.best_value is not none %}
+              {{ progress.best_value }}
+            {% else %}
+              -
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-3">Important parameters</dt>
+          <dd class="col-sm-9">
+            {% if progress.important_parameters %}
+              <code>{{ progress.important_parameters|join(', ') }}</code>
+            {% else %}
+              -
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-3">Jobs submitted</dt>
+          <dd class="col-sm-9">
+            {{ progress.jobs_submitted }}
+            {% if progress.jobs_by_stage %}
+              <span class="text-muted">
+                {% for stage, count in progress.jobs_by_stage.items() %}
+                  ({{ stage }}: {{ count }}){% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </span>
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if result and result.status == 'success' and result.details %}
+    {% set details = result.details %}
+    <div class="card mb-4">
+      <div class="card-header">Optimization Result</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">Best value</dt>
+          <dd class="col-sm-9">{{ details.best_value }}</dd>
+
+          <dt class="col-sm-3">Iterations</dt>
+          <dd class="col-sm-9">{{ details.iterations }}</dd>
+
+          <dt class="col-sm-3">Important parameters</dt>
+          <dd class="col-sm-9">
+            {% if details.important_parameters %}
+              <code>{{ details.important_parameters|join(', ') }}</code>
+            {% else %}
+              -
+            {% endif %}
+          </dd>
+        </dl>
+        <div class="table-responsive mt-3">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Parameter</th>
+                <th scope="col">Best value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for name, value in (details.best_params or {}).items() %}
+                <tr>
+                  <td>{{ name }}</td>
+                  <td>{{ value }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">SSBO convergence</div>
+    <div class="card-body p-0" style="min-height: 18rem;">
+      {% if convergence_state == 'ready' and convergence_html %}
+        {{ convergence_html|safe }}
+      {% elif convergence_state == 'pending' %}
+        <div class="d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+          <span class="text-muted">{{ convergence_message }}</span>
+        </div>
+      {% elif convergence_state == 'unavailable' %}
+        <div class="d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+          <span class="text-muted">Visualization not available</span>
+        </div>
+      {% else %}
+        <div class="d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+          <span class="text-muted">Waiting for visualization.</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Explored points</div>
+    <div class="card-body p-0" style="min-height: 18rem;">
+      {% if exploration_state == 'ready' and exploration_html %}
+        {{ exploration_html|safe }}
+      {% elif exploration_state == 'pending' %}
+        <div class="d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+          <span class="text-muted">{{ exploration_message }}</span>
+        </div>
+      {% elif exploration_state == 'unavailable' %}
+        <div class="d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+          <span class="text-muted">Visualization not available</span>
+        </div>
+      {% else %}
+        <div class="d-flex align-items-center justify-content-center h-100" style="min-height: 18rem;">
+          <span class="text-muted">Waiting for visualization.</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

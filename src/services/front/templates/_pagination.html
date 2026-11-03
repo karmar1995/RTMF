@@ -1,0 +1,39 @@
+{% macro render_pagination(total, total_pages, page, per_page, page_items, endpoint, item_label, extra_args=None, page_param='page', aria_label='Pagination', container_class='') -%}
+  {% if total > 0 %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 {{ container_class }}">
+      <span class="text-muted">Showing {{ [ (page - 1) * per_page + 1, total ] | min }}–{{ [page * per_page, total] | min }} of {{ total }} {{ item_label }}</span>
+      {% if total_pages > 1 %}
+        <nav aria-label="{{ aria_label }}">
+          <ul class="pagination mb-0">
+            {% set prev_args = dict() %}
+            {% set _ = prev_args.update({page_param: page - 1, 'per_page': per_page}) %}
+            {% if extra_args %}{% set _ = prev_args.update(extra_args) %}{% endif %}
+            <li class="page-item {{ 'disabled' if page <= 1 }}">
+              <a class="page-link" href="{{ url_for(endpoint, **prev_args) }}">Previous</a>
+            </li>
+            {% for item in page_items %}
+              {% if item is none %}
+                <li class="page-item disabled">
+                  <span class="page-link">&hellip;</span>
+                </li>
+              {% else %}
+                {% set item_args = dict() %}
+                {% set _ = item_args.update({page_param: item, 'per_page': per_page}) %}
+                {% if extra_args %}{% set _ = item_args.update(extra_args) %}{% endif %}
+                <li class="page-item {{ 'active' if item == page }}">
+                  <a class="page-link" href="{{ url_for(endpoint, **item_args) }}">{{ item }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+            {% set next_args = dict() %}
+            {% set _ = next_args.update({page_param: page + 1, 'per_page': per_page}) %}
+            {% if extra_args %}{% set _ = next_args.update(extra_args) %}{% endif %}
+            <li class="page-item {{ 'disabled' if page >= total_pages }}">
+              <a class="page-link" href="{{ url_for(endpoint, **next_args) }}">Next</a>
+            </li>
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+  {% endif %}
+{%- endmacro %}

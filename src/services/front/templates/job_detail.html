@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Job {{ job.uuid }}{% endblock %}
+
+{% block content %}
+{% if job and job.status in ['waiting', 'running'] %}
+  <meta http-equiv="refresh" content="5">
+{% endif %}
+
+<h1 class="mb-3">Job {{ job.uuid }}</h1>
+
+<!-- Status badge -->
+<p>
+  Status:
+  {% if job.status == "success" %}
+    <span class="badge bg-success">Success</span>
+  {% elif job.status == "error" %}
+    <span class="badge bg-danger">Error</span>
+  {% elif job.status == "running" %}
+    <span class="badge bg-warning text-dark">Running</span>
+  {% elif job.status == "waiting" %}
+    <span class="badge bg-secondary">Waiting</span>
+  {% else %}
+    <span class="badge bg-dark">{{ job.status }}</span>
+  {% endif %}
+</p>
+
+{% if job and job.status in ['waiting', 'running'] %}
+  <div class="alert alert-info" role="alert">Job is still processing. This page will refresh automatically.</div>
+{% endif %}
+
+<!-- Metadata -->
+<div class="card mb-4">
+  <div class="card-header">Job Metadata</div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">UUID</dt>
+      <dd class="col-sm-9"><code>{{ job.uuid }}</code></dd>
+
+      <dt class="col-sm-3">Script</dt>
+      <dd class="col-sm-9"><code>{{ job.script }}</code></dd>
+
+      <dt class="col-sm-3">Working directory</dt>
+      <dd class="col-sm-9"><code>{{ job.workdir }}</code></dd>
+
+      <dt class="col-sm-3">Standard output file</dt>
+      <dd class="col-sm-9"><code>{{ job.stdout_path }}</code></dd>
+
+      <dt class="col-sm-3">Standard errors file</dt>
+      <dd class="col-sm-9"><code>{{ job.stderr_path }}</code></dd>
+
+      <dt class="col-sm-3">Parameters</dt>
+      <dd class="col-sm-9">
+        {% if job.parameters %}
+          <pre class="small bg-light p-2">{{ job.parameters | tojson(indent=2) }}</pre>
+        {% else %}
+          <span class="text-muted">No parameters</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="card mb-4">
+  <div class="card-header">Output</div>
+  <div class="card-body">
+    <pre class="small bg-light p-3 mb-0">{{ job.output or "No log available." }}</pre>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="card mb-4">
+  <div class="card-header">Errors</div>
+  <div class="card-body">
+    <pre class="small bg-light p-3 mb-0">{{ job.errors or "No log available." }}</pre>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="card mb-4">
+  <div class="card-header">Return code</div>
+  <div class="card-body">
+    <pre class="small bg-light p-3 mb-0">{{ "Not yet available." if job.returnCode is none else job.returnCode }}</pre>
+  </div>
+</div>
+
+{% set is_ok = (job.success is defined and job.success) or (job.status == 'success') %}
+
+<a href="{{ url_for('onSimulationMonitor') }}" class="btn btn-outline-primary">Back to Monitor</a>
+
+{% if is_ok %}
+  <a href="{{ url_for('visualize', job_uuid=job.uuid) }}" class="btn btn-outline-success">Visualize Job</a>
+{% endif %}
+
+{% endblock %}

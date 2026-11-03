@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Simulator Details{% endblock %}
+{% block content %}
+<h1>Simulator Details</h1>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h5 class="card-title mb-1">{{ simulator.name }}</h5>
+        <div class="text-muted">{{ simulator.id }}</div>
+      </div>
+      <span class="badge bg-secondary">{{ simulator.status }}</span>
+    </div>
+    <hr>
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Simulator ID</dt>
+      <dd class="col-sm-9">{{ simulator.id }}</dd>
+      <dt class="col-sm-3">Name</dt>
+      <dd class="col-sm-9">{{ simulator.name }}</dd>
+      <dt class="col-sm-3">Status</dt>
+      <dd class="col-sm-9">{{ simulator.status }}</dd>
+      <dt class="col-sm-3">Created</dt>
+      <dd class="col-sm-9"><span data-utc-datetime="{{ simulator.created_at }}">{{ simulator.created_at }}</span></dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header">Technology</div>
+  <div class="card-body">
+    {% if technology %}
+      <pre class="bg-light p-3 rounded small mb-0">{{ technology }}</pre>
+    {% else %}
+      <span class="text-muted">No technology details.</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header">Input Parameters</div>
+  <div class="card-body p-0">
+    {% if input_params and input_params|length > 0 %}
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for param in input_params %}
+            <tr>
+              <td>{{ param.name }}</td>
+              <td>{{ param.type }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="p-3 text-muted">No input parameters.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Output Parameters</div>
+  <div class="card-body p-0">
+    {% if output_params and output_params|length > 0 %}
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for param in output_params %}
+            <tr>
+              <td>{{ param.name }}</td>
+              <td>{{ param.type }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="p-3 text-muted">No output parameters.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="{{ url_for('onSimulatorsBrowse') }}" class="btn btn-outline-secondary">Back to Browse</a>
+</div>
+{% endblock %}

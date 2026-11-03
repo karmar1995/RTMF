@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
+{% block title %}Visualization{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Job Visualization Overview</h1>
+<p class="text-muted">Click a row to choose a visualization mode for that job. An evaluation appears once and visualizes as a single job combining all of its results.</p>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Job UUID</th>
+        <th scope="col">Type</th>
+        <th scope="col">Model Name</th>
+        <th scope="col">Start Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+        <tr class="{{ 'table-primary' if job.kind == 'evaluation' else 'table-success' }}" style="cursor: pointer;"
+            onclick="window.location='{{ job.link }}'">
+          <td>{{ job.uuid }}</td>
+          <td>
+            {% if job.kind == 'evaluation' %}
+              <span class="badge text-bg-primary">Evaluation</span>
+            {% else %}
+              <span class="badge text-bg-success">Job</span>
+            {% endif %}
+          </td>
+          <td>{{ job.model_name or 'Unknown model' }}</td>
+          <td>{% if job.start_time %}<span data-utc-datetime="{{ job.start_time }}">{{ job.start_time }}</span>{% else %}N/A{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="4" class="text-center text-muted">No jobs available.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{{ render_pagination(total, total_pages, page, per_page, page_items, 'onSimulationVisualization', 'jobs', aria_label='Job visualization pages') }}
+{% endblock %}

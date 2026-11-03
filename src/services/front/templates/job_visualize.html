@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+{% block title %}Job Visualization{% endblock %}
+{% block content %}
+<div class="container py-4" data-role="refresh-region">
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="mb-1">Job Visualization</h1>
+      <p class="text-muted mb-0">Job {{ group_id }}</p>
+    </div>
+    <a href="{{ url_for('onSimulationGroupVisualize', job_id=group_id) }}" class="btn btn-outline-secondary">Back to Visualization Modes</a>
+  </div>
+
+  {% if error_message %}
+    <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+  {% endif %}
+
+  {% include "_visualization_results_error.html" %}
+
+  {% if result and result.warning %}
+    <div class="alert alert-warning" role="alert">{{ result.warning }}</div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+    {% set constant_descriptors = result.constants.constants if result.constants else none %}
+    {% set output_namespace = namespace(has_time_series_output=false, has_time_input=false) %}
+    {% for name, typ in result.output_params %}
+      {% if typ.endswith("_ts") %}
+        {% set output_namespace.has_time_series_output = true %}
+      {% endif %}
+    {% endfor %}
+    {% for name, typ in result.input_params %}
+      {% if name == "time" %}
+        {% set output_namespace.has_time_input = true %}
+      {% endif %}
+    {% endfor %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <div class="mb-4">
+          <h2 class="h5 mb-1">Select Parameters</h2>
+          <p class="text-muted mb-0">Choose the axes, statistic, and any fixed input values before continuing.</p>
+        </div>
+
+        <form method="get" action="{{ url_for('onSimulationJobPlot', job_id=group_id) }}">
+          <input type="hidden" name="plot" value="1">
+
+          <div id="series-list" class="vstack gap-4">
+            <div class="card border rounded-3 series-block" data-series-index="0" data-series-template-source>
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                  <h3 class="h5 mb-0 series-title">Series 1</h3>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-lg-4">
+                    <label for="series_0_x" class="form-label">X parameter</label>
+                    <select id="series_0_x" name="series_0_x" class="form-select" data-role="x-select">
+                      {% if output_namespace.has_time_series_output and not output_namespace.has_time_input %}
+                        <option value="time" {% if request.args.get("series_0_x", request.args.get("x")) == "time" %}selected{% endif %}>time</option>
+                      {% endif %}
+                      {% for name, typ in result.input_params %}
+                        {% if name != "time" or output_namespace.has_time_series_output %}
+                          <option value="{{ name }}" {% if request.args.get("series_0_x", request.args.get("x")) == name %}selected{% endif %}>{{ name }}</option>
+                        {% endif %}
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="col-lg-4">
+                    <label for="series_0_y" class="form-label">Y parameter</label>
+                    <select id="series_0_y" name="series_0_y" class="form-select" data-role="y-select">
+                      {% for name, typ in result.output_params %}
+                        <option
+                          value="{{ name }}"
+                          data-param-type="{{ typ }}"
+                          {% if request.args.get("series_0_y", request.args.get("y")) == name %}selected{% endif %}
+                        >{{ name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="col-lg-4">
+                    <label for="series_0_stat" class="form-label">Statistic</label>
+                    <select
+                      id="series_0_stat"
+                      name="series_0_stat"
+                      class="form-select"
+                      data-role="stat-select"
+                      data-selected-stat="{{ request.args.get('series_0_stat', request.args.get('stat', '')) }}"
+                    ></select>
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <div>
+                  <h4 class="h6 mb-3">Constant Parameters</h4>
+
+                  {% if result.constants is none %}
+                    <div
+                      class="alert alert-info mb-0"
+                      role="alert"
+                      data-poll-mode="page-content"
+                      data-state-url="{{ url_for('visualization_status', job_id=group_id) }}"
+                      data-state-status-key="results_status"
+                      data-terminal-statuses="ok,error"
+                      data-refresh-region-selector="[data-role='refresh-region']"
+                    >
+                      Constant parameters are not available yet because analytics or job initialization is still in progress.
+                      <div class="text-muted small mt-2">
+                        <span data-role="poll-status">Still loading, checking again in 5 s.</span>
+                      </div>
+                    </div>
+                  {% elif constant_descriptors %}
+                    {% set selected_x = request.args.get("series_0_x", request.args.get("x")) or result.input_params[0][0] %}
+                    <div class="row g-3" data-role="constant-grid">
+                      {% for param in constant_descriptors %}
+                        {% set param_name = param.name %}
+                        {% set selected_value = request.args.get("series_0_constant_" ~ param_name, request.args.get("constant_" ~ param_name)) %}
+                        <div
+                          class="col-md-6 col-xl-4{% if param_name == selected_x %} d-none{% endif %}"
+                          data-constant-row
+                          data-constant-name="{{ param_name }}"
+                        >
+                          <label for="series_0_constant_{{ loop.index0 }}" class="form-label">{{ param_name }}</label>
+                          <select
+                            id="series_0_constant_{{ loop.index0 }}"
+                            name="series_0_constant_{{ param_name }}"
+                            class="form-select"
+                            data-role="constant-select"
+                            data-constant-param="{{ param_name }}"
+                            {% if param_name == selected_x %}disabled{% endif %}
+                          >
+                            {% for value in param.value or [] %}
+                              {% set option_value = value|string %}
+                              <option value="{{ option_value }}" {% if selected_value == option_value %}selected{% endif %}>
+                                {{ option_value }}
+                              </option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                      {% endfor %}
+                    </div>
+                    <p
+                      class="text-muted mb-0 mt-3{% if constant_descriptors|length > 1 or (constant_descriptors|length == 1 and constant_descriptors[0].name != selected_x) %} d-none{% endif %}"
+                      data-role="constant-empty-message"
+                    >
+                      No constant parameters available for the selected X parameter.
+                    </p>
+                  {% else %}
+                    <p class="text-muted mb-0">No constant parameters available.</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card border rounded-3 mt-4">
+            <div class="card-body p-4">
+              <div class="row g-3 align-items-end">
+                <div class="col-lg-6">
+                  <label for="plot_type" class="form-label">Plot type</label>
+                  <select
+                    id="plot_type"
+                    name="plot_type"
+                    class="form-select"
+                    {% if not plot_types %}disabled{% endif %}
+                  >
+                    {% if plot_types %}
+                      {% set selected_plot_type = request.args.get("plot_type", "") %}
+                      {% for plot_type in plot_types %}
+                        <option
+                          value="{{ plot_type }}"
+                          {% if selected_plot_type == plot_type or (not selected_plot_type and loop.first) %}selected{% endif %}
+                        >
+                          {{ plot_type }}
+                        </option>
+                      {% endfor %}
+                    {% else %}
+                      <option value="" selected>Plot types are not available yet.</option>
+                    {% endif %}
+                  </select>
+                  {% if not plot_types %}
+                    <div class="form-text">Plot types are not available yet.</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+            <button type="button" id="add-series-button" class="btn btn-outline-primary">New series</button>
+            <div class="d-flex flex-column align-items-end">
+              <button type="submit" class="btn btn-primary" {% if result.constants is none %}disabled{% endif %}>Continue</button>
+              {% if result.constants is none %}
+                <div class="form-text text-end">Continue is unavailable until constant parameters are loaded.</div>
+              {% endif %}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <p class="text-muted mb-0">Visualization options are still loading or currently unavailable.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if result and result.input_params and result.output_params %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const seriesList = document.getElementById("series-list");
+      const addSeriesButton = document.getElementById("add-series-button");
+      const templateSeries = seriesList ? seriesList.querySelector(".series-block") : null;
+
+      const scalarStats = [
+        { value: "average", label: "Average" },
+        { value: "min", label: "Min" },
+        { value: "max", label: "Max" },
+        { value: "median", label: "Median" },
+        { value: "p95", label: "P95" }
+      ];
+
+      const timeSeriesStatsForTimeX = [
+        { value: "series_min", label: "Series min" },
+        { value: "series_max", label: "Series max" },
+        { value: "series_median", label: "Series median" },
+        { value: "series_average", label: "Series average" },
+        { value: "series_p95", label: "Series p95" }
+      ];
+
+      const timeSeriesStatsForNonTimeX = [
+        { value: "min_over_time", label: "Min over time" },
+        { value: "max_over_time", label: "Max over time" },
+        { value: "median_over_time", label: "Median over time" },
+        { value: "average_over_time", label: "Average over time" },
+        { value: "p95_over_time", label: "P95 over time" }
+      ];
+
+      const allYOptions = [
+        {% for name, typ in result.output_params %}
+          {
+            value: {{ name|tojson }},
+            label: {{ name|tojson }},
+            paramType: {{ typ|tojson }}
+          }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ];
+
+      function updateConstantVisibility(seriesBlock) {
+        const xSelect = seriesBlock.querySelector("[data-role='x-select']");
+        const constantRows = Array.from(seriesBlock.querySelectorAll("[data-constant-row]"));
+        const constantEmptyMessage = seriesBlock.querySelector("[data-role='constant-empty-message']");
+
+        if (!xSelect || !constantRows.length) {
+          return;
+        }
+
+        const selectedX = xSelect.value;
+        let visibleRows = 0;
+
+        constantRows.forEach(function (row) {
+          const select = row.querySelector("select");
+          const isSelectedX = row.dataset.constantName === selectedX;
+
+          row.classList.toggle("d-none", isSelectedX);
+          if (select) {
+            select.disabled = isSelectedX;
+          }
+
+          if (!isSelectedX) {
+            visibleRows += 1;
+          }
+        });
+
+        if (constantEmptyMessage) {
+          constantEmptyMessage.classList.toggle("d-none", visibleRows !== 0);
+        }
+      }
+
+      function updateStatisticOptions(seriesBlock) {
+        const xSelect = seriesBlock.querySelector("[data-role='x-select']");
+        const ySelect = seriesBlock.querySelector("[data-role='y-select']");
+        const statSelect = seriesBlock.querySelector("[data-role='stat-select']");
+
+        if (!xSelect || !ySelect || !statSelect) {
+          return;
+        }
+
+        const selectedX = xSelect.value;
+        const selectedOption = ySelect.options[ySelect.selectedIndex];
+        const paramType = selectedOption ? (selectedOption.dataset.paramType || "") : "";
+        let availableStats = scalarStats;
+
+        if (!selectedOption) {
+          statSelect.innerHTML = "";
+          statSelect.dataset.selectedStat = "";
+          return;
+        }
+
+        if (paramType.endsWith("_ts")) {
+          availableStats = selectedX === "time" ? timeSeriesStatsForTimeX : timeSeriesStatsForNonTimeX;
+        }
+
+        const requestedValue = statSelect.dataset.selectedStat || statSelect.value;
+
+        statSelect.innerHTML = "";
+
+        availableStats.forEach(function (stat, index) {
+          const option = document.createElement("option");
+          option.value = stat.value;
+          option.textContent = stat.label;
+          if (stat.value === requestedValue || (!requestedValue && index === 0)) {
+            option.selected = true;
+          }
+          statSelect.appendChild(option);
+        });
+
+        if (!availableStats.some(function (stat) { return stat.value === requestedValue; }) && statSelect.options.length > 0) {
+          statSelect.selectedIndex = 0;
+        }
+
+        statSelect.dataset.selectedStat = statSelect.value;
+      }
+
+      function updateYOptions(seriesBlock) {
+        const xSelect = seriesBlock.querySelector("[data-role='x-select']");
+        const ySelect = seriesBlock.querySelector("[data-role='y-select']");
+
+        if (!xSelect || !ySelect) {
+          return;
+        }
+
+        if (!seriesBlock._allYOptions) {
+          seriesBlock._allYOptions = allYOptions.map(function (option) {
+            return {
+              value: option.value,
+              label: option.label,
+              paramType: option.paramType
+            };
+          });
+        }
+
+        const selectedX = xSelect.value;
+        const requestedValue = ySelect.value || ySelect.dataset.selectedValue || "";
+        const availableYOptions = seriesBlock._allYOptions.filter(function (option) {
+          return selectedX !== "time" || option.paramType.endsWith("_ts");
+        });
+
+        ySelect.innerHTML = "";
+
+        availableYOptions.forEach(function (optionData, index) {
+          const option = document.createElement("option");
+          option.value = optionData.value;
+          option.textContent = optionData.label;
+          option.dataset.paramType = optionData.paramType;
+          if (optionData.value === requestedValue || (!requestedValue && index === 0)) {
+            option.selected = true;
+          }
+          ySelect.appendChild(option);
+        });
+
+        if (!availableYOptions.some(function (option) { return option.value === requestedValue; }) && ySelect.options.length > 0) {
+          ySelect.selectedIndex = 0;
+        }
+
+        ySelect.dataset.selectedValue = ySelect.value || "";
+      }
+
+      function initializeSeriesBlock(seriesBlock) {
+        const xSelect = seriesBlock.querySelector("[data-role='x-select']");
+        const ySelect = seriesBlock.querySelector("[data-role='y-select']");
+
+        if (xSelect) {
+          xSelect.addEventListener("change", function () {
+            updateConstantVisibility(seriesBlock);
+            updateYOptions(seriesBlock);
+            updateStatisticOptions(seriesBlock);
+          });
+        }
+
+        if (ySelect) {
+          ySelect.addEventListener("change", function () {
+            ySelect.dataset.selectedValue = ySelect.value;
+            updateStatisticOptions(seriesBlock);
+          });
+        }
+
+        updateConstantVisibility(seriesBlock);
+        updateYOptions(seriesBlock);
+        updateStatisticOptions(seriesBlock);
+      }
+
+      function assignSeriesMetadata(seriesBlock, seriesIndex) {
+        seriesBlock.dataset.seriesIndex = String(seriesIndex);
+
+        const title = seriesBlock.querySelector(".series-title");
+        if (title) {
+          title.textContent = "Series " + (seriesIndex + 1);
+        }
+
+        const xSelect = seriesBlock.querySelector("[data-role='x-select']");
+        const ySelect = seriesBlock.querySelector("[data-role='y-select']");
+        const statSelect = seriesBlock.querySelector("[data-role='stat-select']");
+
+        if (xSelect) {
+          xSelect.id = "series_" + seriesIndex + "_x";
+          xSelect.name = "series_" + seriesIndex + "_x";
+        }
+        if (ySelect) {
+          ySelect.id = "series_" + seriesIndex + "_y";
+          ySelect.name = "series_" + seriesIndex + "_y";
+          ySelect.dataset.selectedValue = ySelect.value || "";
+        }
+        if (statSelect) {
+          statSelect.id = "series_" + seriesIndex + "_stat";
+          statSelect.name = "series_" + seriesIndex + "_stat";
+        }
+
+        seriesBlock.querySelectorAll("label[for]").forEach(function (label) {
+          const currentFor = label.getAttribute("for") || "";
+          if (currentFor.includes("_x")) {
+            label.setAttribute("for", "series_" + seriesIndex + "_x");
+          } else if (currentFor.includes("_y")) {
+            label.setAttribute("for", "series_" + seriesIndex + "_y");
+          } else if (currentFor.includes("_stat")) {
+            label.setAttribute("for", "series_" + seriesIndex + "_stat");
+          }
+        });
+
+        seriesBlock.querySelectorAll("[data-constant-row]").forEach(function (row, constantIndex) {
+          const select = row.querySelector("[data-role='constant-select']");
+          const label = row.querySelector("label");
+          const selectId = "series_" + seriesIndex + "_constant_" + constantIndex;
+
+          if (select) {
+            select.id = selectId;
+            select.name = "series_" + seriesIndex + "_constant_" + select.dataset.constantParam;
+          }
+          if (label) {
+            label.setAttribute("for", selectId);
+          }
+        });
+      }
+
+      function cloneSeriesBlock() {
+        if (!templateSeries || !seriesList) {
+          return;
+        }
+
+        const seriesIndex = seriesList.querySelectorAll(".series-block").length;
+        const clone = templateSeries.cloneNode(true);
+
+        clone.removeAttribute("data-series-template-source");
+        assignSeriesMetadata(clone, seriesIndex);
+
+        const statSelect = clone.querySelector("[data-role='stat-select']");
+        if (statSelect) {
+          statSelect.dataset.selectedStat = "";
+        }
+
+        seriesList.appendChild(clone);
+        initializeSeriesBlock(clone);
+      }
+
+      if (!seriesList || !templateSeries) {
+        return;
+      }
+
+      assignSeriesMetadata(templateSeries, 0);
+      initializeSeriesBlock(templateSeries);
+
+      if (addSeriesButton) {
+        addSeriesButton.addEventListener("click", cloneSeriesBlock);
+      }
+    });
+  </script>
+{% endif %}
+
+  <script src="{{ url_for('static', filename='js/visualization_polling.js') }}"></script>
+</div>
+{% endblock %}
