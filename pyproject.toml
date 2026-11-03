@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rtmf-server"
+version = "0.1.0"
+description = "RTMF (Resiliency Through Multisimulation Framework) server"
+requires-python = ">=3.11"
+dependencies = [
+    "dependency-injector",
+    "fastapi",
+    "Flask",
+    "httpx",
+    "joblib",
+    "PyJWT[crypto]",
+    "cryptography",
+    "minio",
+    "numpy",
+    "pandas",
+    "plotly==6.6.0",
+    "psycopg",
+    "pydantic",
+    "python-multipart==0.0.20",
+    "requests",
+    "SALib",
+    "scikit-learn",
+    "scipy",
+    "sysidentpy",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+test = ["build", "pytest", "setuptools>=68", "wheel"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"services.front" = ["templates/*.html", "static/js/*.js"]
+"services.parser.core.resiliency_recognition" = ["models/*.pkl"]
+"services.visualization" = ["frontend/*.html", "frontend/files/*.js", "frontend/files/*.zip"]
